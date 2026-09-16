@@ -80,9 +80,22 @@ export default function App() {
     });
 
     newSocket.on('user_status_change', (data) => {
-      setUsers(prev => prev.map(u => 
-        u._id === data.userId ? { ...u, isOnline: data.isOnline } : u
-      ));
+      setUsers(prev => {
+        const exists = prev.find(u => u._id === data.userId);
+        if (!exists) {
+          // If we don't know this user, fetch the full list again
+          fetch(`${SOCKET_URL}/api/users`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+            .then(res => res.json())
+            .then(data => setUsers(data))
+            .catch(console.error);
+          return prev;
+        }
+        return prev.map(u => 
+          u._id === data.userId ? { ...u, isOnline: data.isOnline } : u
+        );
+      });
     });
 
     return () => newSocket.disconnect();
@@ -162,7 +175,7 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Sidebar */}
-      <div className="sidebar">
+      <div className={`sidebar ${activeChat ? 'mobile-hidden' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="chat-avatar" style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0 }}>
@@ -208,19 +221,28 @@ export default function App() {
       </div>
 
       {/* Main Chat Panel */}
-      <div className="chat-panel">
+      <div className={`chat-panel ${!activeChat ? 'mobile-hidden' : ''}`}>
         {activeChat ? (
           <>
             <div className="panel-header">
-              <div className="panel-title">
-                <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0 }}>
-                  {activeChat.username.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: '16px' }}>{activeChat.username}</span>
-                  <span className="status-indicator">
-                    {activeChat.isOnline ? 'online' : 'offline'}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <button 
+                  className="mobile-only-btn" 
+                  onClick={() => setActiveChat(null)} 
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--wa-teal-dark)', display: 'none' }}
+                >
+                  ←
+                </button>
+                <div className="panel-title">
+                  <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0 }}>
+                    {activeChat.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: '16px' }}>{activeChat.username}</span>
+                    <span className="status-indicator">
+                      {activeChat.isOnline ? 'online' : 'offline'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

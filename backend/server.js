@@ -6,6 +6,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const User = require('./models/User');
 const Message = require('./models/Message');
@@ -30,6 +31,32 @@ mongoose.connect(MONGO_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-crypto-key';
+
+// --- ENCRYPTION UTILS ---
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012'; // Must be 32 bytes
+const IV_LENGTH = 16; // AES blocksize
+
+function encrypt(text) {
+  let iv = crypto.randomBytes(IV_LENGTH);
+  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(text) {
+  try {
+    let textParts = text.split(':');
+    let iv = Buffer.from(textParts.shift(), 'hex');
+    let encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (err) {
+    return "Error: Could not decrypt message";
+  }
+}
 
 // --- AUTH REST API ---
 
@@ -103,7 +130,17 @@ app.get('/api/messages/:userId', async (req, res) => {
       ]
     }).sort({ createdAt: 1 });
 
-    res.json(messages);
+    const decryptedMessages = messages.map(msg => ({
+      _id: msg._id,
+      senderId: msg.senderId,
+      receiverId: msg.receiverId,
+      plainText: decrypt(msg.plainText),
+      scrambledText: msg.scrambledText,
+      createdAt: msg.createdAt,
+      read: msg.read
+    }));
+
+    res.json(decryptedMessages);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -142,11 +179,13 @@ io.on('connection', async (socket) => {
     try {
       const { receiverId, plainText, scrambledText, timestamp } = data;
       
+      const encryptedText = encrypt(plainText);
+
       // Save to database
       const newMessage = new Message({
         senderId: socket.userId,
         receiverId,
-        plainText,
+        plainText: encryptedText,
         scrambledText,
       });
       await newMessage.save();
@@ -155,7 +194,7 @@ io.on('connection', async (socket) => {
         _id: newMessage._id,
         senderId: socket.userId,
         receiverId,
-        plainText,
+        plainText, // We send the decrypted version back over the wire
         scrambledText,
         timestamp: newMessage.createdAt
       };
