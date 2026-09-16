@@ -1,0 +1,5 @@
+{
+  "appId": "com.cryptochat.app",
+  "appName": "CryptoChat",
+  "webDir": "dist"
+}

@@ -26,10 +26,31 @@ export default function EncryptedMessage({ message, isSent }) {
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
     setMousePos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: clientX - rect.left,
+      y: clientY - rect.top,
     });
+  };
+
+  const handleTouchStart = (e) => {
+    setIsHovered(true);
+    setIsShiftDown(true); // Treat touch as "holding shift"
+    handleMouseMove(e);
+  };
+
+  const handleTouchEnd = () => {
+    setIsHovered(false);
+    setIsShiftDown(false);
   };
 
   const showXRay = isHovered && isShiftDown;
@@ -42,6 +63,10 @@ export default function EncryptedMessage({ message, isSent }) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onMouseMove={handleMouseMove}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onTouchMove={handleMouseMove}
       >
         {/* The Base Layer: Gibberish Text */}
         <div style={{ 

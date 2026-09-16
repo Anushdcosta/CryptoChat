@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CryptoChat</string>
+    <string name="title_activity_main">CryptoChat</string>
+    <string name="package_name">com.cryptochat.app</string>
+    <string name="custom_url_scheme">com.cryptochat.app</string>
+</resources>
