@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import EncryptedMessage from './EncryptedMessage';
 
-export default function ChatBox({ messages, currentUserId }) {
+export default function ChatBox({ messages, currentUserId, onMarkViewed }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -25,6 +25,7 @@ export default function ChatBox({ messages, currentUserId }) {
             <EncryptedMessage 
               message={msg} 
               isSent={msg.senderId === currentUserId} 
+              onMarkViewed={onMarkViewed}
             />
           </div>
         ))

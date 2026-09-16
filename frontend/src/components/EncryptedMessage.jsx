@@ -1,10 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function EncryptedMessage({ message, isSent }) {
+export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const [wasViewed, setWasViewed] = useState(false);
   const containerRef = useRef(null);
+
+  const showXRay = isHovered && isShiftDown;
+
+  useEffect(() => {
+    if (showXRay && message.attachment && !message.viewed) {
+      setWasViewed(true);
+    } else if (!showXRay && wasViewed) {
+      if (onMarkViewed) onMarkViewed(message._id);
+      setWasViewed(false);
+    }
+  }, [showXRay, message, wasViewed, onMarkViewed]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -53,8 +65,6 @@ export default function EncryptedMessage({ message, isSent }) {
     setIsShiftDown(false);
   };
 
-  const showXRay = isHovered && isShiftDown;
-
   return (
     <div className={`message-wrapper ${isSent ? 'sent' : 'received'}`}>
       <div 
@@ -67,20 +77,30 @@ export default function EncryptedMessage({ message, isSent }) {
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         onTouchMove={handleMouseMove}
+        style={{ minWidth: (message.attachment || message.viewed) ? '120px' : '80px' }}
       >
-        {/* The Base Layer: Gibberish Text */}
+        {/* The Base Layer: Gibberish Text or Photo Placeholder */}
         <div style={{ 
           opacity: showXRay ? 0.2 : 1, 
           transition: 'opacity 0.2s',
-          fontFamily: 'monospace',
-          wordBreak: 'break-all'
+          fontFamily: (message.attachment || message.viewed) ? 'inherit' : 'monospace',
+          wordBreak: 'break-all',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          {message.scrambledText}
+          {message.viewed ? (
+            <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
+          ) : message.attachment ? (
+            <span style={{ fontWeight: 'bold' }}>📸 View Once Photo</span>
+          ) : (
+            message.scrambledText
+          )}
           {/* Invisible spacer for the time to float right properly */}
           <span style={{ display: 'inline-block', width: '60px' }}></span>
         </div>
 
-        {/* The X-Ray Layer: Real Text */}
+        {/* The X-Ray Layer: Real Text / Image */}
         <div 
           style={{
             position: 'absolute',
@@ -93,23 +113,35 @@ export default function EncryptedMessage({ message, isSent }) {
             color: '#000000',
             fontFamily: 'inherit',
             clipPath: showXRay 
-              ? `circle(120px at ${mousePos.x}px ${mousePos.y}px)` 
-              : 'circle(0px at 0 0)',
-            transition: 'clip-path 0.05s ease-out',
+              ? `circle(9999px at ${mousePos.x}px ${mousePos.y}px)` 
+              : 'circle(0px at 50% 50%)',
+            transition: 'clip-path 0.3s ease-out',
             pointerEvents: 'none',
             wordBreak: 'break-word',
-            zIndex: 10
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
           }}
         >
-          {message.plainText}
+          {message.viewed ? (
+            <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
+          ) : (
+            <>
+              {message.attachment && (
+                <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', borderRadius: '4px' }} />
+              )}
+              {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}
+            </>
+          )}
           <span style={{ display: 'inline-block', width: '60px' }}></span>
         </div>
         
         <div className="message-time" style={{ position: 'absolute', bottom: '4px', right: '12px', zIndex: 11 }}>
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {new Date(message.createdAt || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           {isSent && (
             <svg viewBox="0 0 16 15" width="16" height="15" style={{ marginLeft: 4, verticalAlign: 'middle' }}>
-              <path fill="#53bdeb" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.88a.32.32 0 0 1-.484.032l-.358-.325a.32.32 0 0 0-.484.032l-.378.48a.418.418 0 0 0 .036.54l1.32 1.267a.32.32 0 0 0 .484-.034l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.88a.32.32 0 0 1-.484.032L1.892 7.74a.366.366 0 0 0-.516.005l-.423.433a.364.364 0 0 0 .006.514l3.255 3.185a.32.32 0 0 0 .484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"></path>
+              <path fill={message.read ? "#53bdeb" : "#9CA3AF"} d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.88a.32.32 0 0 1-.484.032l-.358-.325a.32.32 0 0 0-.484.032l-.378.48a.418.418 0 0 0 .036.54l1.32 1.267a.32.32 0 0 0 .484-.034l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.88a.32.32 0 0 1-.484.032L1.892 7.74a.366.366 0 0 0-.516.005l-.423.433a.364.364 0 0 0 .006.514l3.255 3.185a.32.32 0 0 0 .484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"></path>
             </svg>
           )}
         </div>

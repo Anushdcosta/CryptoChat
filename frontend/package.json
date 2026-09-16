@@ -26,6 +26,7 @@
     "@capacitor/android": "^6.2.2",
     "@capacitor/cli": "^6.2.2",
     "@capacitor/core": "^6.2.2",
+    "emoji-picker-react": "^4.22.2",
     "lucide-react": "^1.46.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

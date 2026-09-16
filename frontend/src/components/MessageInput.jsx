@@ -1,38 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { scrambleText } from '../crypto';
-import { Send, Smile, Paperclip } from 'lucide-react';
+import { Send, Smile, Paperclip, X } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 
 export default function MessageInput({ onSendMessage }) {
   const [text, setText] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const pickerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const onEmojiClick = (emojiObject) => {
+    setText(prev => prev + emojiObject.emoji);
+  };
+
+  const handleAttachClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Please select an image smaller than 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAttachment(event.target.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = null; // reset
+  };
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (!text.trim() && !attachment) return;
     
-    const plainText = text.trim();
+    const plainText = text.trim() || '📸 Photo';
     const scrambledText = scrambleText(plainText);
     
     onSendMessage({
       plainText,
       scrambledText,
+      attachment,
       timestamp: Date.now()
     });
     
     setText('');
+    setAttachment(null);
   };
 
   return (
-    <div className="input-area">
-      <div style={{ position: 'relative' }}>
-        <span className="help-text">Hold SHIFT to decode</span>
-      </div>
-      <button style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}>
+    <div className="input-area" style={{ position: 'relative' }}>
+      {showEmojiPicker && (
+        <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
+          <EmojiPicker onEmojiClick={onEmojiClick} />
+        </div>
+      )}
+      
+      <button 
+        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}
+      >
         <Smile size={24} />
       </button>
-      <button style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}>
+      
+      <button 
+        onClick={handleAttachClick}
+        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}
+      >
         <Paperclip size={24} />
       </button>
       
-      <div className="text-input-group">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        accept="image/*" 
+        onChange={handleFileChange} 
+      />
+      
+      <div className="text-input-group" style={{ display: 'flex', alignItems: 'center' }}>
+        {attachment && (
+          <div style={{ position: 'relative', marginRight: '10px' }}>
+            <img src={attachment} alt="preview" style={{ height: '30px', borderRadius: '4px' }} />
+            <button 
+              onClick={() => setAttachment(null)}
+              style={{ position: 'absolute', top: -5, right: -5, background: 'red', color: 'white', border: 'none', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
         <input
           type="text"
           value={text}
@@ -42,17 +114,14 @@ export default function MessageInput({ onSendMessage }) {
         />
       </div>
 
-      {text.trim() ? (
-        <button className="send-btn" onClick={handleSend} style={{ padding: '8px' }}>
-          <Send size={24} />
-        </button>
-      ) : (
-        <button className="send-btn" style={{ padding: '8px', color: '#54656f', cursor: 'default' }}>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-            <path d="M11.999 14.942c2.001 0 3.531-1.53 3.531-3.531V4.35c0-2.001-1.53-3.531-3.531-3.531S8.469 2.349 8.469 4.35v7.061c0 2.001 1.53 3.531 3.53 3.531zm6.238-3.53c0 3.531-2.942 6.002-6.237 6.002s-6.237-2.471-6.237-6.002H3.761c0 4.001 3.178 7.297 7.061 7.885v3.884h2.354v-3.884c3.884-.588 7.061-3.884 7.061-7.885h-2.002z"></path>
-          </svg>
-        </button>
-      )}
+      <button 
+        className="send-btn" 
+        onClick={handleSend} 
+        style={{ padding: '8px', opacity: (text.trim() || attachment) ? 1 : 0.5 }}
+        disabled={!text.trim() && !attachment}
+      >
+        <Send size={24} />
+      </button>
     </div>
   );
 }

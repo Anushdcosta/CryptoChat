@@ -136,6 +136,8 @@ app.get('/api/messages/:userId', async (req, res) => {
       receiverId: msg.receiverId,
       plainText: decrypt(msg.plainText),
       scrambledText: msg.scrambledText,
+      attachment: msg.attachment ? decrypt(msg.attachment) : null,
+      viewed: msg.viewed,
       createdAt: msg.createdAt,
       read: msg.read
     }));
@@ -177,9 +179,10 @@ io.on('connection', async (socket) => {
   // Direct Messaging
   socket.on('send_direct_message', async (data) => {
     try {
-      const { receiverId, plainText, scrambledText, timestamp } = data;
+      const { receiverId, plainText, scrambledText, attachment, timestamp } = data;
       
       const encryptedText = encrypt(plainText);
+      const encryptedAttachment = attachment ? encrypt(attachment) : null;
 
       // Save to database
       const newMessage = new Message({
@@ -187,6 +190,8 @@ io.on('connection', async (socket) => {
         receiverId,
         plainText: encryptedText,
         scrambledText,
+        attachment: encryptedAttachment,
+        viewed: false
       });
       await newMessage.save();
 
@@ -196,6 +201,8 @@ io.on('connection', async (socket) => {
         receiverId,
         plainText, // We send the decrypted version back over the wire
         scrambledText,
+        attachment,
+        viewed: false,
         timestamp: newMessage.createdAt
       };
 
@@ -204,8 +211,26 @@ io.on('connection', async (socket) => {
       // Also emit back to sender so they get confirmation
       socket.emit('receive_direct_message', payload);
       
-    } catch (err) {
-      console.error('Error saving message', err);
+    } catch (error) {
+      console.error('Message error:', error);
+    }
+  });
+
+  // Mark View Once Image as Viewed
+  socket.on('mark_viewed', async (messageId) => {
+    try {
+      const msg = await Message.findById(messageId);
+      if (msg) {
+        msg.attachment = null; // Delete the image payload forever
+        msg.viewed = true;
+        await msg.save();
+        
+        // Notify both parties
+        io.to(msg.receiverId.toString()).emit('message_viewed', messageId);
+        io.to(msg.senderId.toString()).emit('message_viewed', messageId);
+      }
+    } catch (error) {
+      console.error('Mark viewed error:', error);
     }
   });
 

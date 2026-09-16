@@ -8,7 +8,10 @@ const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
 export default function App() {
   // Auth State
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   
   // App State
@@ -24,6 +27,8 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
+  const [showTutorial, setShowTutorial] = useState(false);
+
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -37,8 +42,14 @@ export default function App() {
       if (!res.ok) throw new Error(data.error);
       
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
+      
+      if (!localStorage.getItem('hasSeenTutorial')) {
+        setShowTutorial(true);
+        localStorage.setItem('hasSeenTutorial', 'true');
+      }
     } catch (err) {
       setAuthError(err.message);
     }
@@ -46,6 +57,7 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
     if (socket) socket.disconnect();
@@ -77,6 +89,10 @@ export default function App() {
     
     newSocket.on('receive_direct_message', (msg) => {
       setMessages((prev) => [...prev, msg]);
+    });
+
+    newSocket.on('message_viewed', (messageId) => {
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
     });
 
     newSocket.on('user_status_change', (data) => {
@@ -120,6 +136,13 @@ export default function App() {
         receiverId: activeChat._id
       };
       socket.emit('send_direct_message', payload);
+    }
+  };
+
+  const handleMarkViewed = (messageId) => {
+    if (socket) {
+      socket.emit('mark_viewed', messageId);
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
     }
   };
 
@@ -253,6 +276,7 @@ export default function App() {
                 (m.senderId === activeChat._id && m.receiverId === user?.id)
               )} 
               currentUserId={user?.id} 
+              onMarkViewed={handleMarkViewed}
             />
             
             <MessageInput 
@@ -267,6 +291,41 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Tutorial Modal */}
+      {showTutorial && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999, 
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div style={{
+            background: 'white', padding: '40px', borderRadius: '12px', 
+            maxWidth: '500px', textAlign: 'center', margin: '20px'
+          }}>
+            <h2 style={{ color: 'var(--wa-teal-dark)', marginBottom: '20px' }}>Welcome to CryptoChat!</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.6', marginBottom: '20px' }}>
+              Your messages are protected by military-grade encryption. To keep them safe from prying eyes, they appear as scrambled gibberish by default.
+            </p>
+            <div style={{ background: '#f0f2f5', padding: '20px', borderRadius: '8px', marginBottom: '30px', textAlign: 'left' }}>
+              <div style={{ marginBottom: '10px' }}><strong>How to read messages:</strong></div>
+              <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                <li style={{ marginBottom: '10px' }}><strong>Desktop:</strong> Hold down the <kbd>SHIFT</kbd> key while hovering over a message.</li>
+                <li><strong>Mobile:</strong> Long-press on a message to decode it.</li>
+              </ul>
+            </div>
+            <button 
+              onClick={() => setShowTutorial(false)}
+              style={{
+                background: 'var(--wa-teal-light)', color: 'white', border: 'none', 
+                padding: '12px 30px', borderRadius: '24px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold'
+              }}
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
