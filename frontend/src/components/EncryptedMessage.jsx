@@ -92,12 +92,14 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
           {message.viewed ? (
             <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
           ) : message.attachment ? (
-            <span style={{ fontWeight: 'bold' }}>📸 View Once Photo</span>
+            <div style={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isSent ? '#c1e5a5' : '#e2e8f0', borderRadius: '8px' }}>
+              <span style={{ fontWeight: 'bold' }}>📸 View Once Photo</span>
+            </div>
           ) : (
             message.scrambledText
           )}
           {/* Invisible spacer for the time to float right properly */}
-          <span style={{ display: 'inline-block', width: '60px' }}></span>
+          {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
         </div>
 
         {/* The X-Ray Layer: Real Text / Image */}
@@ -129,12 +131,14 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
           ) : (
             <>
               {message.attachment && (
-                <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', borderRadius: '4px' }} />
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
+                  <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                </div>
               )}
               {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}
             </>
           )}
-          <span style={{ display: 'inline-block', width: '60px' }}></span>
+          {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
         </div>
         
         <div className="message-time" style={{ position: 'absolute', bottom: '4px', right: '12px', zIndex: 11 }}>

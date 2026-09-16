@@ -1,8 +1,10 @@
 {
-  "name": "frontend",
+  "name": "cryptochat",
   "private": true,
   "main": "electron-main.cjs",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "author": "Anush Dcosta",
+  "description": "A secure, encrypted chat application",
   "type": "module",
   "scripts": {
     "dev": "vite",

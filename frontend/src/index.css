@@ -172,6 +172,7 @@ body {
 
 .text-input-group input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   padding: 8px 0;
@@ -188,6 +189,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 4px;
+  flex-shrink: 0;
 }
 
 .send-btn:not(:disabled) {

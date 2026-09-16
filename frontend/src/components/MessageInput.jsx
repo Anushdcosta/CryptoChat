@@ -73,14 +73,14 @@ export default function MessageInput({ onSendMessage }) {
       
       <button 
         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}
+        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer', flexShrink: 0 }}
       >
         <Smile size={24} />
       </button>
       
       <button 
         onClick={handleAttachClick}
-        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer' }}
+        style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer', flexShrink: 0 }}
       >
         <Paperclip size={24} />
       </button>
@@ -117,7 +117,7 @@ export default function MessageInput({ onSendMessage }) {
       <button 
         className="send-btn" 
         onClick={handleSend} 
-        style={{ padding: '8px', opacity: (text.trim() || attachment) ? 1 : 0.5 }}
+        style={{ padding: '8px', opacity: (text.trim() || attachment) ? 1 : 0.5, flexShrink: 0 }}
         disabled={!text.trim() && !attachment}
       >
         <Send size={24} />
