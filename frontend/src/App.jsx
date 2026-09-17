@@ -3,10 +3,12 @@ import { io } from 'socket.io-client';
 import { User, Lock, ArrowRight, Search, X, Users, Plus } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
 import ProfileModal from './components/ProfileModal';
+import GroupSettingsModal from './components/GroupSettingsModal';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
@@ -35,6 +37,7 @@ export default function App() {
   // Advanced Features State
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
 
   // Refs for socket callbacks
@@ -151,11 +154,16 @@ export default function App() {
         const isNotActiveChat = !activeChatRef.current || activeChatRef.current._id !== msg.senderId;
 
         if (isBackground || isNotActiveChat) {
-          // Try to find sender's name
           const sender = usersRef.current.find(u => u._id === msg.senderId);
           const senderName = sender ? sender.username : 'Someone';
           showNotification('CryptoChat', `New message from ${senderName}`);
         }
+        
+        setUsers(currentUsers => currentUsers.map(u => 
+          u._id === msg.senderId 
+            ? { ...u, unreadCount: (u.unreadCount || 0) + 1 }
+            : u
+        ));
       }
     });
 
@@ -191,7 +199,9 @@ export default function App() {
           username: room.name,
           isGroup: true,
           isOnline: true,
-          status: `${room.members.length} members`
+          status: `${room.members.length} members`,
+          unreadCount: 0,
+          members: room.members
         };
         // Avoid duplicates if already exists
         if (prev.find(u => u._id === room._id)) return prev;
@@ -207,6 +217,34 @@ export default function App() {
 
       if (isBackground || isNotActiveChat) {
         showNotification('CryptoChat', `${msg.senderName} to group`);
+      }
+      
+      setUsers(currentUsers => currentUsers.map(u => 
+        u._id === msg.roomId 
+          ? { ...u, unreadCount: (u.unreadCount || 0) + 1 }
+          : u
+      ));
+    });
+
+    newSocket.on('group_updated', (room) => {
+      setUsers(prev => {
+        const formattedRoom = {
+          _id: room._id,
+          username: room.name,
+          isGroup: true,
+          isOnline: true,
+          status: `${room.members.length} members`,
+          unreadCount: 0,
+          members: room.members
+        };
+        const exists = prev.find(u => u._id === room._id);
+        if (exists) {
+          return prev.map(u => u._id === room._id ? { ...u, ...formattedRoom } : u);
+        }
+        return [formattedRoom, ...prev];
+      });
+      if (activeChatRef.current && activeChatRef.current._id === room._id) {
+        setActiveChat(prev => ({ ...prev, status: `${room.members.length} members`, members: room.members }));
       }
     });
 
@@ -251,9 +289,26 @@ export default function App() {
 
   useEffect(() => {
     if (socket && activeChat && activeChat._id) {
-      socket.emit('mark_messages_read', { senderId: activeChat._id });
+      if (!activeChat.isGroup) {
+        socket.emit('mark_messages_read', { senderId: activeChat._id });
+      }
+      setUsers(prev => prev.map(u => u._id === activeChat._id ? { ...u, unreadCount: 0 } : u));
     }
   }, [activeChat, messages]);
+
+  useEffect(() => {
+    CapacitorApp.addListener('backButton', () => {
+      if (activeChatRef.current) {
+        setActiveChat(null);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    });
+
+    return () => {
+      CapacitorApp.removeAllListeners();
+    };
+  }, []);
 
   const handleSendMessage = (data) => {
     if (!socket || !activeChat) return;
@@ -453,9 +508,15 @@ export default function App() {
                   <span style={{ fontSize: '12px', color: u.isOnline ? '#25D366' : 'var(--wa-text-secondary)' }}>
                     {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'offline')}
                   </span>
-                </div>
-                <div style={{ fontSize: '13px', color: typingUsers[u._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: typingUsers[u._id] ? 'bold' : 'normal' }}>
-                  {typingUsers[u._id] ? 'typing...' : u.status}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '13px', color: typingUsers[u._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: typingUsers[u._id] ? 'bold' : 'normal' }}>
+                    {typingUsers[u._id] ? 'typing...' : u.status}
+                  </div>
+                  {u.unreadCount > 0 && (
+                    <div style={{ background: '#25D366', color: '#fff', fontSize: '12px', fontWeight: 'bold', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {u.unreadCount}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -485,6 +546,17 @@ export default function App() {
         />
       )}
 
+      {showGroupSettingsModal && activeChat && activeChat.isGroup && (
+        <GroupSettingsModal 
+          room={activeChat}
+          users={usersRef.current}
+          currentUserId={user?.id}
+          onClose={() => setShowGroupSettingsModal(false)}
+          onAddMember={(roomId, userId) => socket.emit('add_group_member', { roomId, userId })}
+          onRemoveMember={(roomId, userId) => socket.emit('remove_group_member', { roomId, userId })}
+        />
+      )}
+
       {/* Main Chat Panel */}
       <div className={`chat-panel ${!activeChat ? 'mobile-hidden' : ''}`}>
         {activeChat ? (
@@ -498,7 +570,7 @@ export default function App() {
                 >
                   ←
                 </button>
-                <div className="panel-title">
+                <div className="panel-title" style={{ cursor: activeChat.isGroup ? 'pointer' : 'default' }} onClick={() => activeChat.isGroup && setShowGroupSettingsModal(true)}>
                   <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0, marginRight: 16, overflow: 'hidden' }}>
                     {activeChat.isGroup ? <Users size={20} color="#fff" /> : (activeChat.avatar ? <img src={activeChat.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : activeChat.username.charAt(0).toUpperCase())}
                   </div>

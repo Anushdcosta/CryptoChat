@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Reply, Smile } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
-export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete, onReply, onReact, isGroupChat, repliedMessage }) {
+export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete, onReply, onReact, isGroupChat, repliedMessage, hasTail }) {
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [isWrapperHovered, setIsWrapperHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -10,6 +10,10 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
   const [wasViewed, setWasViewed] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const containerRef = useRef(null);
+  
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+  const longPressTimer = useRef(null);
 
   const showXRay = isHovered && isShiftDown;
 
@@ -59,54 +63,88 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
     });
   };
 
-  const handleTouchStart = (e) => {
+  const onTouchStart = (e) => {
     setIsHovered(true);
-    setIsShiftDown(true); // Treat touch as "holding shift"
+    setIsShiftDown(true);
     handleMouseMove(e);
+    
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+
+    longPressTimer.current = setTimeout(() => {
+      setShowEmojiPicker(true);
+    }, 500);
   };
 
-  const handleTouchEnd = () => {
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+    handleMouseMove(e);
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const onTouchEnd = () => {
     setIsHovered(false);
     setIsShiftDown(false);
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    if (distance > 50 || distance < -50) {
+      onReply(message);
+    }
   };
+
+  const ActionButtons = () => (
+    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fff', padding: '4px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
+      {isSent && (
+        <button onClick={() => onDelete(message._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Unsend">
+          <Trash2 size={16} />
+        </button>
+      )}
+      <button onClick={() => onReply(message)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="Reply">
+        <Reply size={16} />
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="React">
+          <Smile size={16} />
+        </button>
+        {showEmojiPicker && (
+          <div style={{ position: 'absolute', bottom: '30px', left: isSent ? 'auto' : '-50px', right: isSent ? '-50px' : 'auto', zIndex: 1000 }}>
+            <EmojiPicker onEmojiClick={(emojiData) => { onReact(message._id, emojiData.emoji); setShowEmojiPicker(false); }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div 
-      className={`message-wrapper ${isSent ? 'sent' : 'received'}`}
+      className={`message-wrapper ${isSent ? 'sent' : 'received'} ${hasTail ? 'has-tail' : ''}`}
       onMouseEnter={() => setIsWrapperHovered(true)}
       onMouseLeave={() => setIsWrapperHovered(false)}
-      style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: isSent ? 'flex-end' : 'flex-start' }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: isSent ? 'flex-end' : 'flex-start', position: 'relative' }}
     >
-      <div style={{ display: 'flex', gap: '4px', opacity: isWrapperHovered ? 1 : 0, transition: 'opacity 0.2s', flexDirection: isSent ? 'row' : 'row-reverse', alignItems: 'center' }}>
-        {isSent && (
-          <button onClick={() => onDelete(message._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Unsend">
-            <Trash2 size={16} />
-          </button>
-        )}
-        <button onClick={() => onReply(message)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="Reply">
-          <Reply size={16} />
-        </button>
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="React">
-            <Smile size={16} />
-          </button>
-          {showEmojiPicker && (
-            <div style={{ position: 'absolute', bottom: '30px', left: isSent ? 'auto' : 0, right: isSent ? 0 : 'auto', zIndex: 1000 }}>
-              <EmojiPicker onEmojiClick={(emojiData) => { onReact(message._id, emojiData.emoji); setShowEmojiPicker(false); }} />
-            </div>
-          )}
+      {isSent && (isWrapperHovered || showEmojiPicker) && (
+        <div style={{ position: 'absolute', right: '100%', marginRight: '8px', zIndex: 20 }}>
+          <ActionButtons />
         </div>
-      </div>
+      )}
+      
+      {!isSent && (isWrapperHovered || showEmojiPicker) && (
+        <div style={{ position: 'absolute', left: '100%', marginLeft: '8px', zIndex: 20 }}>
+          <ActionButtons />
+        </div>
+      )}
+
       <div 
         className="message-bubble"
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onMouseMove={handleMouseMove}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        onTouchMove={handleMouseMove}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchMove={onTouchMove}
         style={{ minWidth: (message.attachment || message.viewed) ? '120px' : '80px' }}
       >
         <div style={{ 

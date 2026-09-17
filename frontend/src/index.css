@@ -154,7 +154,6 @@ body, html {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   z-index: 1;
   min-height: 0;
 }
@@ -241,18 +240,26 @@ body, html {
   min-width: 80px;
 }
 
-.message-wrapper.sent .message-bubble {
+.message-wrapper.sent.has-tail .message-bubble {
   background-color: var(--wa-bubble-sent);
   border-top-right-radius: 0;
 }
 
-.message-wrapper.received .message-bubble {
+.message-wrapper.sent:not(.has-tail) .message-bubble {
+  background-color: var(--wa-bubble-sent);
+}
+
+.message-wrapper.received.has-tail .message-bubble {
   background-color: var(--wa-bubble-received);
   border-top-left-radius: 0;
 }
 
+.message-wrapper.received:not(.has-tail) .message-bubble {
+  background-color: var(--wa-bubble-received);
+}
+
 /* Tails */
-.message-wrapper.sent .message-bubble::after {
+.message-wrapper.sent.has-tail .message-bubble::after {
   content: "";
   position: absolute;
   top: 0;
@@ -265,7 +272,7 @@ body, html {
   border-bottom: 0;
 }
 
-.message-wrapper.received .message-bubble::before {
+.message-wrapper.received.has-tail .message-bubble::before {
   content: "";
   position: absolute;
   top: 0;

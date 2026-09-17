@@ -140,6 +140,15 @@ app.get('/api/users/recent', async (req, res) => {
     });
 
     const users = await User.find({ _id: { $in: Array.from(userIds) } }).select('-password');
+    const usersWithUnread = await Promise.all(users.map(async u => {
+      const unreadCount = await Message.countDocuments({
+        senderId: u._id,
+        receiverId: myId,
+        read: false
+      });
+      return { ...u.toObject(), unreadCount };
+    }));
+
     const rooms = await Room.find({ members: myId });
 
     const formattedRooms = rooms.map(room => ({
@@ -147,10 +156,11 @@ app.get('/api/users/recent', async (req, res) => {
       username: room.name,
       isGroup: true,
       isOnline: true,
-      status: `${room.members.length} members`
+      status: `${room.members.length} members`,
+      unreadCount: 0
     }));
 
-    res.json([...formattedRooms, ...users]);
+    res.json([...formattedRooms, ...usersWithUnread]);
   } catch (error) {
     console.error('Recent error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -358,6 +368,34 @@ io.on('connection', async (socket) => {
       io.to(roomId).emit('receive_group_message', payload);
     } catch (e) {
       console.error('Group message error:', e);
+    }
+  });
+
+  socket.on('add_group_member', async (data) => {
+    try {
+      const { roomId, userId } = data;
+      const room = await Room.findById(roomId);
+      if (room && !room.members.includes(userId)) {
+        room.members.push(userId);
+        await room.save();
+        io.emit('group_updated', room);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
+  socket.on('remove_group_member', async (data) => {
+    try {
+      const { roomId, userId } = data;
+      const room = await Room.findById(roomId);
+      if (room) {
+        room.members = room.members.filter(m => m.toString() !== userId);
+        await room.save();
+        io.emit('group_updated', room);
+      }
+    } catch (e) {
+      console.error(e);
     }
   });
 
