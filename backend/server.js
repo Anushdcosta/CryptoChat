@@ -25,7 +25,11 @@ const io = new Server(server, {
 });
 
 // Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://anushviston_db_user:KJQTdvsY3jK4jbbm@cluster0.dq4gfa4.mongodb.net/cryptochat?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error("CRITICAL ERROR: MONGO_URI environment variable is missing.");
+  process.exit(1);
+}
 mongoose.connect(MONGO_URI)
   .then(() => console.log('Connected to MongoDB!'))
   .catch(err => console.error('MongoDB connection error:', err));
