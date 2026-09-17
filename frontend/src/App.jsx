@@ -26,6 +26,9 @@ export default function App() {
   // Search State
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Typing State
+  const [typingUsers, setTypingUsers] = useState({});
 
   // Refs for socket callbacks
   const activeChatRef = useRef(null);
@@ -153,6 +156,18 @@ export default function App() {
       setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
     });
 
+    newSocket.on('typing', (data) => {
+      setTypingUsers(prev => ({ ...prev, [data.senderId]: true }));
+    });
+    
+    newSocket.on('stop_typing', (data) => {
+      setTypingUsers(prev => ({ ...prev, [data.senderId]: false }));
+    });
+
+    newSocket.on('message_deleted', (messageId) => {
+      setMessages(prev => prev.filter(m => m._id !== messageId));
+    });
+
     newSocket.on('user_status_change', (data) => {
       setUsers(prev => {
         const exists = prev.find(u => u._id === data.userId);
@@ -210,6 +225,21 @@ export default function App() {
       socket.emit('mark_viewed', messageId);
       setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
     }
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    if (socket) {
+      socket.emit('delete_message', messageId);
+      setMessages(prev => prev.filter(m => m._id !== messageId));
+    }
+  };
+
+  const handleTyping = () => {
+    if (socket && activeChat) socket.emit('typing', { receiverId: activeChat._id });
+  };
+
+  const handleStopTyping = () => {
+    if (socket && activeChat) socket.emit('stop_typing', { receiverId: activeChat._id });
   };
 
   // --- RENDER AUTH SCREEN ---
@@ -315,8 +345,8 @@ export default function App() {
                     {u.isOnline ? 'online' : 'offline'}
                   </span>
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {u.status}
+                <div style={{ fontSize: '13px', color: typingUsers[u._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: typingUsers[u._id] ? 'bold' : 'normal' }}>
+                  {typingUsers[u._id] ? 'typing...' : u.status}
                 </div>
               </div>
             </div>
@@ -348,8 +378,8 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontSize: '16px' }}>{activeChat.username}</span>
-                    <span className="status-indicator">
-                      {activeChat.isOnline ? 'online' : 'offline'}
+                    <span className="status-indicator" style={{ color: typingUsers[activeChat._id] ? 'var(--wa-teal-light)' : 'inherit', fontWeight: typingUsers[activeChat._id] ? 'bold' : 'normal' }}>
+                      {typingUsers[activeChat._id] ? 'typing...' : (activeChat.isOnline ? 'online' : 'offline')}
                     </span>
                   </div>
                 </div>
@@ -363,10 +393,13 @@ export default function App() {
               )} 
               currentUserId={user?.id} 
               onMarkViewed={handleMarkViewed}
+              onDeleteMessage={handleDeleteMessage}
             />
             
             <MessageInput 
               onSendMessage={handleSendMessage} 
+              onTyping={handleTyping}
+              onStopTyping={handleStopTyping}
             />
           </>
         ) : (

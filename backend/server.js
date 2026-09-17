@@ -267,6 +267,34 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // Delete Message (Unsend)
+  socket.on('delete_message', async (messageId) => {
+    try {
+      const msg = await Message.findById(messageId);
+      if (msg && msg.senderId.toString() === socket.userId) {
+        await Message.findByIdAndDelete(messageId);
+        // Notify both parties
+        io.to(msg.receiverId.toString()).emit('message_deleted', messageId);
+        io.to(msg.senderId.toString()).emit('message_deleted', messageId);
+      }
+    } catch (error) {
+      console.error('Delete message error:', error);
+    }
+  });
+
+  // Typing Indicators
+  socket.on('typing', (data) => {
+    if (data.receiverId) {
+      socket.to(data.receiverId).emit('typing', { senderId: socket.userId });
+    }
+  });
+
+  socket.on('stop_typing', (data) => {
+    if (data.receiverId) {
+      socket.to(data.receiverId).emit('stop_typing', { senderId: socket.userId });
+    }
+  });
+
   socket.on('disconnect', async () => {
     console.log(`User disconnected: ${socket.userId}`);
     await User.findByIdAndUpdate(socket.userId, { isOnline: false, socketId: null });

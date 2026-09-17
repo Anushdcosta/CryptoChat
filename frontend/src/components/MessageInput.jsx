@@ -3,12 +3,13 @@ import { scrambleText } from '../crypto';
 import { Send, Smile, Paperclip, X } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
-export default function MessageInput({ onSendMessage }) {
+export default function MessageInput({ onSendMessage, onTyping, onStopTyping }) {
   const [text, setText] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -46,8 +47,21 @@ export default function MessageInput({ onSendMessage }) {
     e.target.value = null; // reset
   };
 
+  const handleInputChange = (e) => {
+    setText(e.target.value);
+    if (onTyping) onTyping();
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onStopTyping) onStopTyping();
+    }, 2000);
+  };
+
   const handleSend = () => {
     if (!text.trim() && !attachment) return;
+    
+    if (onStopTyping) onStopTyping();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
     const plainText = text.trim() || '📸 Photo';
     const scrambledText = scrambleText(plainText);
@@ -108,7 +122,7 @@ export default function MessageInput({ onSendMessage }) {
         <input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Type a message"
         />

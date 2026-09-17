@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 
-export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
+export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete }) {
   const [isShiftDown, setIsShiftDown] = useState(false);
+  const [isWrapperHovered, setIsWrapperHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
   const [wasViewed, setWasViewed] = useState(false);
@@ -67,7 +69,21 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
   };
 
   return (
-    <div className={`message-wrapper ${isSent ? 'sent' : 'received'}`}>
+    <div 
+      className={`message-wrapper ${isSent ? 'sent' : 'received'}`}
+      onMouseEnter={() => setIsWrapperHovered(true)}
+      onMouseLeave={() => setIsWrapperHovered(false)}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: isSent ? 'flex-end' : 'flex-start' }}
+    >
+      {isSent && isWrapperHovered && (
+        <button 
+          onClick={() => onDelete(message._id)}
+          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', opacity: 0.7 }}
+          title="Unsend for everyone"
+        >
+          <Trash2 size={18} />
+        </button>
+      )}
       <div 
         className="message-bubble"
         ref={containerRef}
