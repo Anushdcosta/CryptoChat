@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
 import { User, Lock, ArrowRight, Search, X, Users, Plus } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
@@ -9,412 +8,225 @@ import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
 import ProfileModal from './components/ProfileModal';
 import GroupSettingsModal from './components/GroupSettingsModal';
-import { GoogleOAuthProvider } from '@react-oauth/google';
 import Login from './components/Login';
 
-const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, doc, getDoc, setDoc, updateDoc, onSnapshot, query, where, orderBy, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function App() {
-  // Auth State
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [user, setUser] = useState(null);
+  const [authResolved, setAuthResolved] = useState(false);
   
-  // App State
-  const [socket, setSocket] = useState(null);
-  const [users, setUsers] = useState([]);
+  const [remoteUsers, setRemoteUsers] = useState([]);
+  const [remoteRooms, setRemoteRooms] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [allUsers, setAllUsers] = useState([]);
-  // Search State
+  
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Typing State
-  const [typingUsers, setTypingUsers] = useState({});
-
-  // Advanced Features State
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
-
-  // Refs for socket callbacks
-  const activeChatRef = useRef(null);
-  const usersRef = useRef([]);
-
-  useEffect(() => {
-    activeChatRef.current = activeChat;
-  }, [activeChat]);
-
-  useEffect(() => {
-    usersRef.current = users;
-  }, [users]);
-
-  // Auth Forms
-  const [authError, setAuthError] = useState('');
-
   const [showTutorial, setShowTutorial] = useState(false);
 
-  const handleAuthSuccess = async (data) => {
-    setAuthError('');
-    try {
-      let endpoint = '';
-      let body = {};
-      if (data.mode === 'google') {
-        endpoint = '/api/auth/google';
-        body = { credential: data.credential };
-      } else {
-        endpoint = data.mode === 'register' ? '/api/auth/register' : '/api/auth/login';
-        body = { email: data.email, password: data.password, username: data.username };
-      }
-      
-      const res = await fetch(`${SOCKET_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
-      
-      localStorage.setItem('token', result.token);
-      localStorage.setItem('user', JSON.stringify(result.user));
-      setToken(result.token);
-      setUser(result.user);
-      
-      if (!localStorage.getItem('hasSeenTutorial')) {
-        setShowTutorial(true);
-        localStorage.setItem('hasSeenTutorial', 'true');
-      }
-      
-      requestNotificationPermissions();
-    } catch (err) {
-      setAuthError(err.message);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    if (socket) socket.disconnect();
-  };
-
-  // Fetch Users
+  // 1. Auth Listener
   useEffect(() => {
-    if (!token) return;
-    
-    fetch(`${SOCKET_URL}/api/users/recent`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => {
-        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
-        return res.json();
-      })
-      .then(data => {
-        if (Array.isArray(data)) setUsers(data);
-        else console.error('Failed to load recent users:', data);
-      })
-      .catch(err => console.error(err));
-  }, [token]);
-
-  // Fetch All Users for Search
-  useEffect(() => {
-    if (!token || !isSearching) return;
-    
-    fetch(`${SOCKET_URL}/api/users`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => {
-        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
-        return res.json();
-      })
-      .then(data => {
-        if (Array.isArray(data)) setAllUsers(data);
-        else console.error('Failed to load all users:', data);
-      })
-      .catch(err => console.error(err));
-  }, [token, isSearching]);
-
-  // Socket Connection
-  useEffect(() => {
-    if (!token) return;
-
-    const newSocket = io(SOCKET_URL, {
-      auth: { token }
-    });
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => setIsConnected(true));
-    newSocket.on('disconnect', () => setIsConnected(false));
-    
-    newSocket.on('receive_direct_message', (msg) => {
-      setMessages((prev) => [...prev, msg]);
-      
-      if (msg.senderId !== user?.id) {
-        // If the app is in background, or we are not looking at the chat
-        const isBackground = document.hidden;
-        const isNotActiveChat = !activeChatRef.current || activeChatRef.current._id !== msg.senderId;
-
-        if (isBackground || isNotActiveChat) {
-          const sender = usersRef.current.find(u => u._id === msg.senderId);
-          const senderName = sender ? sender.username : 'Someone';
-          showNotification('CryptoChat', `New message from ${senderName}`);
-        }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userRef);
         
-        setUsers(currentUsers => currentUsers.map(u => 
-          u._id === msg.senderId 
-            ? { ...u, unreadCount: (u.unreadCount || 0) + 1 }
-            : u
-        ));
+        let userData = {
+          _id: firebaseUser.uid,
+          email: firebaseUser.email || firebaseUser.phoneNumber,
+          isOnline: true,
+          lastSeen: Date.now(),
+        };
+
+        if (userDoc.exists()) {
+          userData = { ...userDoc.data(), ...userData };
+        } else {
+          userData.username = firebaseUser.displayName || 'New User';
+          userData.avatar = firebaseUser.photoURL || '';
+          userData.status = 'Hey there! I am using CryptoChat.';
+        }
+
+        await setDoc(userRef, userData, { merge: true });
+        setUser(userData);
+        
+        if (!localStorage.getItem('hasSeenTutorial')) {
+          setShowTutorial(true);
+          localStorage.setItem('hasSeenTutorial', 'true');
+        }
+        requestNotificationPermissions();
+      } else {
+        setUser(null);
       }
-    });
-
-    newSocket.on('message_viewed', (messageId) => {
-      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
-    });
-
-    newSocket.on('typing', (data) => {
-      setTypingUsers(prev => ({ ...prev, [data.senderId]: true }));
+      setAuthResolved(true);
     });
     
-    newSocket.on('stop_typing', (data) => {
-      setTypingUsers(prev => ({ ...prev, [data.senderId]: false }));
-    });
-
-    newSocket.on('message_deleted', (messageId) => {
-      setMessages(prev => prev.filter(m => m._id !== messageId));
-    });
-
-    newSocket.on('messages_read', (data) => {
-      setMessages(prev => prev.map(m => {
-        if (m.receiverId === data.receiverId && !m.read) {
-          return { ...m, read: true };
-        }
-        return m;
-      }));
-    });
-
-    newSocket.on('group_created', (room) => {
-      setUsers(prev => {
-        const formattedRoom = {
-          _id: room._id,
-          username: room.name,
-          isGroup: true,
-          isOnline: true,
-          status: `${room.members.length} members`,
-          unreadCount: 0,
-          members: room.members
-        };
-        // Avoid duplicates if already exists
-        if (prev.find(u => u._id === room._id)) return prev;
-        return [formattedRoom, ...prev];
-      });
-    });
-
-    newSocket.on('receive_group_message', (msg) => {
-      setMessages((prev) => [...prev, msg]);
-      
-      const isBackground = document.hidden;
-      const isNotActiveChat = !activeChatRef.current || activeChatRef.current._id !== msg.roomId;
-
-      if (isBackground || isNotActiveChat) {
-        showNotification('CryptoChat', `${msg.senderName} to group`);
+    // Set offline on unload
+    const handleUnload = () => {
+      if (auth.currentUser) {
+        updateDoc(doc(db, 'users', auth.currentUser.uid), { isOnline: false, lastSeen: Date.now() });
       }
-      
-      setUsers(currentUsers => currentUsers.map(u => 
-        u._id === msg.roomId 
-          ? { ...u, unreadCount: (u.unreadCount || 0) + 1 }
-          : u
-      ));
-    });
-
-    newSocket.on('group_updated', (room) => {
-      setUsers(prev => {
-        const formattedRoom = {
-          _id: room._id,
-          username: room.name,
-          isGroup: true,
-          isOnline: true,
-          status: `${room.members.length} members`,
-          unreadCount: 0,
-          members: room.members
-        };
-        const exists = prev.find(u => u._id === room._id);
-        if (exists) {
-          return prev.map(u => u._id === room._id ? { ...u, ...formattedRoom } : u);
-        }
-        return [formattedRoom, ...prev];
-      });
-      if (activeChatRef.current && activeChatRef.current._id === room._id) {
-        setActiveChat(prev => ({ ...prev, status: `${room.members.length} members`, members: room.members }));
-      }
-    });
-
-    newSocket.on('message_reacted', (data) => {
-      setMessages(prev => prev.map(m => {
-        if (m._id === data.messageId) {
-          const newReactions = m.reactions ? [...m.reactions] : [];
-          const idx = newReactions.findIndex(r => r.userId === data.userId);
-          if (idx >= 0) newReactions[idx].emoji = data.emoji;
-          else newReactions.push({ userId: data.userId, emoji: data.emoji });
-          return { ...m, reactions: newReactions };
-        }
-        return m;
-      }));
-    });
-
-    newSocket.on('user_status_change', (data) => {
-      setUsers(prev => {
-        const exists = prev.find(u => u._id === data.userId);
-        if (exists) {
-          return prev.map(u => u._id === data.userId ? { ...u, isOnline: data.isOnline, lastSeen: data.lastSeen } : u);
-        }
-        // If not found in current list, we can't easily add them without username, so ignore.
-        return prev;
-      });
-    });
-
-    return () => newSocket.disconnect();
-  }, [token]);
-
-  // Fetch Messages when Active Chat changes
-  useEffect(() => {
-    if (activeChat && token) {
-      fetch(`${SOCKET_URL}/api/messages/${activeChat._id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => setMessages(data))
-      .catch(err => console.error(err));
-    }
-  }, [activeChat, token]);
-
-  useEffect(() => {
-    if (socket && activeChat && activeChat._id) {
-      if (!activeChat.isGroup) {
-        socket.emit('mark_messages_read', { senderId: activeChat._id });
-      }
-      setUsers(prev => prev.map(u => u._id === activeChat._id ? { ...u, unreadCount: 0 } : u));
-    }
-  }, [activeChat, messages]);
-
-  useEffect(() => {
-    CapacitorApp.addListener('backButton', () => {
-      if (activeChatRef.current) {
-        setActiveChat(null);
-      } else {
-        CapacitorApp.exitApp();
-      }
-    });
-
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    
     return () => {
-      CapacitorApp.removeAllListeners();
+      unsubscribe();
+      window.removeEventListener('beforeunload', handleUnload);
     };
   }, []);
 
-  const handleSendMessage = (data) => {
-    if (!socket || !activeChat) return;
+  // 2. Fetch Users
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'users');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const uData = [];
+      snapshot.forEach(d => {
+        if (d.id !== user._id) uData.push({ _id: d.id, ...d.data() });
+      });
+      setRemoteUsers(uData);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // 3. Fetch Rooms
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'rooms'), where('members', 'array-contains', user._id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rData = [];
+      snapshot.forEach(d => {
+        rData.push({ 
+          _id: d.id, 
+          username: d.data().name,
+          isGroup: true,
+          isOnline: true,
+          status: `${d.data().members.length} members`,
+          ...d.data() 
+        });
+      });
+      setRemoteRooms(rData);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // 4. Fetch Messages for Active Chat
+  useEffect(() => {
+    if (!user || !activeChat) return;
+    let q;
+    if (activeChat.isGroup) {
+      q = query(collection(db, 'messages'), where('roomId', '==', activeChat._id), orderBy('createdAt', 'asc'));
+    } else {
+      const threadId = [user._id, activeChat._id].sort().join('_');
+      q = query(collection(db, 'messages'), where('threadId', '==', threadId), orderBy('createdAt', 'asc'));
+    }
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(d => msgs.push({ _id: d.id, ...d.data() }));
+      setMessages(msgs);
+      
+      // Mark read
+      msgs.forEach(m => {
+        if (m.receiverId === user._id && !m.read) {
+          updateDoc(doc(db, 'messages', m._id), { read: true });
+        }
+      });
+    });
+    return () => unsubscribe();
+  }, [activeChat, user]);
+
+  useEffect(() => {
+    CapacitorApp.addListener('backButton', () => {
+      if (activeChat) setActiveChat(null);
+      else CapacitorApp.exitApp();
+    });
+    return () => CapacitorApp.removeAllListeners();
+  }, [activeChat]);
+
+  const handleLogout = async () => {
+    if (user) {
+      await updateDoc(doc(db, 'users', user._id), { isOnline: false, lastSeen: Date.now() });
+    }
+    await signOut(auth);
+  };
+
+  const handleSendMessage = async (data) => {
+    if (!user || !activeChat) return;
+    
+    const msgData = {
+      senderId: user._id,
+      senderName: user.username,
+      plainText: data.plainText,
+      scrambledText: data.scrambledText,
+      attachment: data.attachment || null,
+      replyTo: replyingToMessage ? replyingToMessage._id : null,
+      createdAt: Date.now(),
+      read: false,
+      viewed: false,
+      reactions: []
+    };
 
     if (activeChat.isGroup) {
-      socket.emit('send_group_message', {
-        roomId: activeChat._id,
-        plainText: data.plainText,
-        scrambledText: data.scrambledText,
-        attachment: data.attachment,
-        replyTo: replyingToMessage ? replyingToMessage._id : null
-      });
+      msgData.roomId = activeChat._id;
     } else {
-      socket.emit('send_direct_message', {
-        receiverId: activeChat._id,
-        plainText: data.plainText,
-        scrambledText: data.scrambledText,
-        attachment: data.attachment,
-        replyTo: replyingToMessage ? replyingToMessage._id : null,
-        timestamp: data.timestamp
-      });
+      msgData.receiverId = activeChat._id;
+      msgData.threadId = [user._id, activeChat._id].sort().join('_');
     }
-    
+
+    await addDoc(collection(db, 'messages'), msgData);
     setReplyingToMessage(null);
   };
 
-  const handleMarkViewed = (messageId) => {
-    if (socket) {
-      socket.emit('mark_viewed', messageId);
-      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, attachment: null, viewed: true } : m));
-    }
+  const handleMarkViewed = async (messageId) => {
+    await updateDoc(doc(db, 'messages', messageId), { viewed: true, attachment: null });
   };
 
-  const handleDeleteMessage = (messageId) => {
-    if (socket) {
-      socket.emit('delete_message', messageId);
-      setMessages(prev => prev.filter(m => m._id !== messageId));
-    }
+  const handleDeleteMessage = async (messageId) => {
+    await deleteDoc(doc(db, 'messages', messageId));
   };
 
-  const handleTyping = () => {
-    if (socket && activeChat && !activeChat.isGroup) socket.emit('typing', { receiverId: activeChat._id });
+  const handleCreateGroup = async (name, members) => {
+    await addDoc(collection(db, 'rooms'), {
+      name,
+      members: [...members, user._id],
+      createdAt: serverTimestamp()
+    });
+    setShowGroupModal(false);
   };
 
-  const handleStopTyping = () => {
-    if (socket && activeChat && !activeChat.isGroup) socket.emit('stop_typing', { receiverId: activeChat._id });
-  };
-
-  const handleCreateGroup = (name, members) => {
-    if (socket) {
-      socket.emit('create_group', { name, members });
-      setShowGroupModal(false);
-    }
-  };
-
-  const handleReplyMessage = (message) => {
-    setReplyingToMessage(message);
-  };
-
-  const handleReact = (messageId, emoji) => {
-    if (socket) {
-      socket.emit('react_message', { messageId, emoji });
-    }
+  const handleReact = async (messageId, emoji) => {
+    const msg = messages.find(m => m._id === messageId);
+    if (!msg) return;
+    const newReactions = msg.reactions ? [...msg.reactions] : [];
+    const idx = newReactions.findIndex(r => r.userId === user._id);
+    if (idx >= 0) newReactions[idx].emoji = emoji;
+    else newReactions.push({ userId: user._id, emoji });
+    
+    await updateDoc(doc(db, 'messages', messageId), { reactions: newReactions });
   };
 
   const handleUpdateProfile = async (data) => {
-    try {
-      const res = await fetch(`${SOCKET_URL}/api/users/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        const updatedUser = await res.json();
-        const newUser = { id: updatedUser._id, username: updatedUser.username, avatar: updatedUser.avatar, status: updatedUser.status };
-        setUser(newUser);
-        localStorage.setItem('user', JSON.stringify(newUser));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    await updateDoc(doc(db, 'users', user._id), data);
+    setUser(prev => ({ ...prev, ...data }));
   };
 
-  // --- RENDER AUTH SCREEN ---
-  if (!token) {
-    return (
-      <GoogleOAuthProvider clientId="451500121141-gre6ics6sn63ns855m99cbilja4ur1ga.apps.googleusercontent.com">
-        <Login onAuthSuccess={handleAuthSuccess} authError={authError} />
-      </GoogleOAuthProvider>
-    );
+  if (!authResolved) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
+
+  if (!user) {
+    return <Login />;
   }
 
-  // --- RENDER MAIN APP ---
+  const allChats = [...remoteRooms, ...remoteUsers];
   const displayedUsers = isSearching 
-    ? (Array.isArray(allUsers) ? allUsers : []).filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-    : (Array.isArray(users) ? users : []);
+    ? allChats.filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    : allChats;
 
   return (
     <div className="app-container">
@@ -476,31 +288,22 @@ export default function App() {
                   <span style={{ fontSize: '12px', color: u.isOnline ? '#25D366' : 'var(--wa-text-secondary)' }}>
                     {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'offline')}
                   </span>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '13px', color: typingUsers[u._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: typingUsers[u._id] ? 'bold' : 'normal' }}>
-                    {typingUsers[u._id] ? 'typing...' : u.status}
+                  <div style={{ fontSize: '13px', color: 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {u.status}
                   </div>
-                  {u.unreadCount > 0 && (
-                    <div style={{ background: '#25D366', color: '#fff', fontSize: '12px', fontWeight: 'bold', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {u.unreadCount}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           ))}
-          {displayedUsers.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--wa-text-secondary)' }}>
-              {isSearching ? 'No users found.' : 'No recent chats. Click the search icon to find someone!'}
-            </div>
-          )}
         </div>
       </div>
 
       {showGroupModal && (
         <GroupModal 
-          users={usersRef.current} 
-          currentUserId={user?.id} 
+          users={remoteUsers} 
+          currentUserId={user?._id} 
           onClose={() => setShowGroupModal(false)}
           onCreate={handleCreateGroup}
         />
@@ -517,11 +320,15 @@ export default function App() {
       {showGroupSettingsModal && activeChat && activeChat.isGroup && (
         <GroupSettingsModal 
           room={activeChat}
-          users={usersRef.current}
-          currentUserId={user?.id}
+          users={remoteUsers}
+          currentUserId={user?._id}
           onClose={() => setShowGroupSettingsModal(false)}
-          onAddMember={(roomId, userId) => socket.emit('add_group_member', { roomId, userId })}
-          onRemoveMember={(roomId, userId) => socket.emit('remove_group_member', { roomId, userId })}
+          onAddMember={async (roomId, userId) => {
+            await updateDoc(doc(db, 'rooms', roomId), { members: [...activeChat.members, userId] });
+          }}
+          onRemoveMember={async (roomId, userId) => {
+            await updateDoc(doc(db, 'rooms', roomId), { members: activeChat.members.filter(id => id !== userId) });
+          }}
         />
       )}
 
@@ -544,8 +351,8 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{activeChat.username}</span>
-                    <span className="status-indicator" style={{ color: typingUsers[activeChat._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', fontWeight: typingUsers[activeChat._id] ? 'bold' : 'normal', fontSize: '13px' }}>
-                      {typingUsers[activeChat._id] ? 'typing...' : (activeChat.isGroup ? activeChat.status : (activeChat.isOnline ? 'online' : `last seen ${activeChat.lastSeen ? new Date(activeChat.lastSeen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'offline'}`))}
+                    <span className="status-indicator" style={{ color: 'var(--wa-text-secondary)', fontSize: '13px' }}>
+                      {activeChat.isGroup ? activeChat.status : (activeChat.isOnline ? 'online' : `last seen ${activeChat.lastSeen ? new Date(activeChat.lastSeen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'offline'}`)}
                     </span>
                   </div>
                 </div>
@@ -553,23 +360,19 @@ export default function App() {
             </div>
             
             <ChatBox 
-              messages={messages.filter(m => 
-                activeChat.isGroup 
-                  ? m.roomId === activeChat._id 
-                  : ((m.senderId === user?.id && m.receiverId === activeChat._id) || (m.senderId === activeChat._id && m.receiverId === user?.id))
-              )} 
-              currentUserId={user?.id} 
+              messages={messages} 
+              currentUserId={user?._id} 
               onMarkViewed={handleMarkViewed}
               onDeleteMessage={handleDeleteMessage}
-              onReply={handleReplyMessage}
+              onReply={setReplyingToMessage}
               onReact={handleReact}
               isGroupChat={activeChat.isGroup}
             />
             
             <MessageInput 
               onSendMessage={handleSendMessage} 
-              onTyping={handleTyping}
-              onStopTyping={handleStopTyping}
+              onTyping={() => {}}
+              onStopTyping={() => {}}
               replyingToMessage={replyingToMessage}
               onCancelReply={() => setReplyingToMessage(null)}
             />
@@ -583,7 +386,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Tutorial Modal */}
       {showTutorial && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
