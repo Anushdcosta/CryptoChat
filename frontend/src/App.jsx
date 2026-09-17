@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import { User, Lock, ArrowRight, Search, X } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
+import ChatBox from './components/ChatBox';
+import MessageInput from './components/MessageInput';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
