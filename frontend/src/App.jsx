@@ -269,11 +269,11 @@ export default function App() {
   if (token && !isUnlocked) {
     const handleBiometricUnlock = async () => {
       try {
-        const result = await NativeBiometric.verifyIdentity({
+        await NativeBiometric.verifyIdentity({
           reason: "Unlock CryptoChat",
           title: "Verify Identity"
         });
-        if (result) setIsUnlocked(true);
+        setIsUnlocked(true);
       } catch (e) {
         console.error('Biometric error:', e);
       }
