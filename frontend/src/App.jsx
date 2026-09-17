@@ -9,6 +9,8 @@ import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
 import ProfileModal from './components/ProfileModal';
 import GroupSettingsModal from './components/GroupSettingsModal';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import Login from './components/Login';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
@@ -53,36 +55,41 @@ export default function App() {
   }, [users]);
 
   // Auth Forms
-  const [authMode, setAuthMode] = useState('login');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
   const [showTutorial, setShowTutorial] = useState(false);
 
-  const handleAuth = async (e) => {
-    e.preventDefault();
+  const handleAuthSuccess = async (data) => {
     setAuthError('');
     try {
-      const res = await fetch(`${SOCKET_URL}/api/auth/${authMode}`, {
+      let endpoint = '';
+      let body = {};
+      if (data.mode === 'google') {
+        endpoint = '/api/auth/google';
+        body = { credential: data.credential };
+      } else {
+        endpoint = data.mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+        body = { email: data.email, password: data.password, username: data.username };
+      }
+      
+      const res = await fetch(`${SOCKET_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(body)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
       
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setToken(data.token);
-      setUser(data.user);
+      localStorage.setItem('token', result.token);
+      localStorage.setItem('user', JSON.stringify(result.user));
+      setToken(result.token);
+      setUser(result.user);
       
       if (!localStorage.getItem('hasSeenTutorial')) {
         setShowTutorial(true);
         localStorage.setItem('hasSeenTutorial', 'true');
       }
       
-      // Request notification permissions after login
       requestNotificationPermissions();
     } catch (err) {
       setAuthError(err.message);
@@ -398,48 +405,9 @@ export default function App() {
   // --- RENDER AUTH SCREEN ---
   if (!token) {
     return (
-      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '400px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <Lock size={48} color="var(--wa-teal-light)" />
-            <h2 style={{ marginTop: '10px', color: 'var(--wa-teal-dark)' }}>CryptoChat</h2>
-            <p style={{ color: 'var(--wa-text-secondary)' }}>Sign in to continue</p>
-          </div>
-          
-          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {authError && <div style={{ color: 'red', fontSize: '14px', textAlign: 'center' }}>{authError}</div>}
-            
-            <input 
-              type="text" 
-              placeholder="Username" 
-              value={username} 
-              onChange={e => setUsername(e.target.value)}
-              style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '16px' }}
-              required
-            />
-            <input 
-              type="password" 
-              placeholder="Password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)}
-              style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '16px' }}
-              required
-            />
-            <button type="submit" style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>
-              {authMode === 'login' ? 'Login' : 'Register'}
-            </button>
-          </form>
-          
-          <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button 
-              onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-              style={{ background: 'none', border: 'none', color: 'var(--wa-teal-light)', cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Login"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <GoogleOAuthProvider clientId="PLACEHOLDER_CLIENT_ID">
+        <Login onAuthSuccess={handleAuthSuccess} authError={authError} />
+      </GoogleOAuthProvider>
     );
   }
 
