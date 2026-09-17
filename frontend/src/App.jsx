@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { User, Lock, ArrowRight, Search, X } from 'lucide-react';
+import { User, Lock, ArrowRight, Search, X, Users, Plus } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
+import GroupModal from './components/GroupModal';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
@@ -29,6 +30,10 @@ export default function App() {
   
   // Typing State
   const [typingUsers, setTypingUsers] = useState({});
+
+  // Advanced Features State
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [replyingToMessage, setReplyingToMessage] = useState(null);
 
   // Refs for socket callbacks
   const activeChatRef = useRef(null);
@@ -168,6 +173,45 @@ export default function App() {
       setMessages(prev => prev.filter(m => m._id !== messageId));
     });
 
+    newSocket.on('group_created', (room) => {
+      setUsers(prev => {
+        const formattedRoom = {
+          _id: room._id,
+          username: room.name,
+          isGroup: true,
+          isOnline: true,
+          status: `${room.members.length} members`
+        };
+        // Avoid duplicates if already exists
+        if (prev.find(u => u._id === room._id)) return prev;
+        return [formattedRoom, ...prev];
+      });
+    });
+
+    newSocket.on('receive_group_message', (msg) => {
+      setMessages((prev) => [...prev, msg]);
+      
+      const isBackground = document.hidden;
+      const isNotActiveChat = !activeChatRef.current || activeChatRef.current._id !== msg.roomId;
+
+      if (isBackground || isNotActiveChat) {
+        showNotification('CryptoChat', `${msg.senderName} to group`);
+      }
+    });
+
+    newSocket.on('message_reacted', (data) => {
+      setMessages(prev => prev.map(m => {
+        if (m._id === data.messageId) {
+          const newReactions = m.reactions ? [...m.reactions] : [];
+          const idx = newReactions.findIndex(r => r.userId === data.userId);
+          if (idx >= 0) newReactions[idx].emoji = data.emoji;
+          else newReactions.push({ userId: data.userId, emoji: data.emoji });
+          return { ...m, reactions: newReactions };
+        }
+        return m;
+      }));
+    });
+
     newSocket.on('user_status_change', (data) => {
       setUsers(prev => {
         const exists = prev.find(u => u._id === data.userId);
@@ -210,14 +254,29 @@ export default function App() {
       .catch(err => console.error(err));
   }, [activeChat, token]);
 
-  const handleSendMessage = (msgData) => {
-    if (socket && activeChat) {
-      const payload = {
-        ...msgData,
-        receiverId: activeChat._id
-      };
-      socket.emit('send_direct_message', payload);
+  const handleSendMessage = (data) => {
+    if (!socket || !activeChat) return;
+
+    if (activeChat.isGroup) {
+      socket.emit('send_group_message', {
+        roomId: activeChat._id,
+        plainText: data.plainText,
+        scrambledText: data.scrambledText,
+        attachment: data.attachment,
+        replyTo: replyingToMessage ? replyingToMessage._id : null
+      });
+    } else {
+      socket.emit('send_direct_message', {
+        receiverId: activeChat._id,
+        plainText: data.plainText,
+        scrambledText: data.scrambledText,
+        attachment: data.attachment,
+        replyTo: replyingToMessage ? replyingToMessage._id : null,
+        timestamp: data.timestamp
+      });
     }
+    
+    setReplyingToMessage(null);
   };
 
   const handleMarkViewed = (messageId) => {
@@ -235,11 +294,28 @@ export default function App() {
   };
 
   const handleTyping = () => {
-    if (socket && activeChat) socket.emit('typing', { receiverId: activeChat._id });
+    if (socket && activeChat && !activeChat.isGroup) socket.emit('typing', { receiverId: activeChat._id });
   };
 
   const handleStopTyping = () => {
-    if (socket && activeChat) socket.emit('stop_typing', { receiverId: activeChat._id });
+    if (socket && activeChat && !activeChat.isGroup) socket.emit('stop_typing', { receiverId: activeChat._id });
+  };
+
+  const handleCreateGroup = (name, members) => {
+    if (socket) {
+      socket.emit('create_group', { name, members });
+      setShowGroupModal(false);
+    }
+  };
+
+  const handleReplyMessage = (message) => {
+    setReplyingToMessage(message);
+  };
+
+  const handleReact = (messageId, emoji) => {
+    if (socket) {
+      socket.emit('react_message', { messageId, emoji });
+    }
   };
 
   // --- RENDER AUTH SCREEN ---
@@ -308,6 +384,9 @@ export default function App() {
               <span style={{ fontWeight: 'bold' }}>{user?.username}</span>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button onClick={() => setShowGroupModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-teal-dark)' }}>
+                <Plus size={20} />
+              </button>
               <button onClick={() => { setIsSearching(!isSearching); setSearchQuery(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-teal-dark)' }}>
                 {isSearching ? <X size={20} /> : <Search size={20} />}
               </button>
@@ -336,7 +415,7 @@ export default function App() {
               onClick={() => setActiveChat(u)}
             >
               <div className="chat-avatar" style={{ margin: 0, marginRight: 16 }}>
-                {u.username.charAt(0).toUpperCase()}
+                {u.isGroup ? <Users size={20} color="#fff" /> : u.username.charAt(0).toUpperCase()}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -358,6 +437,15 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {showGroupModal && (
+        <GroupModal 
+          users={usersRef.current} 
+          currentUserId={user?.id} 
+          onClose={() => setShowGroupModal(false)}
+          onCreate={handleCreateGroup}
+        />
+      )}
 
       {/* Main Chat Panel */}
       <div className={`chat-panel ${!activeChat ? 'mobile-hidden' : ''}`}>
@@ -388,18 +476,24 @@ export default function App() {
             
             <ChatBox 
               messages={messages.filter(m => 
-                (m.senderId === user?.id && m.receiverId === activeChat._id) || 
-                (m.senderId === activeChat._id && m.receiverId === user?.id)
+                activeChat.isGroup 
+                  ? m.roomId === activeChat._id 
+                  : ((m.senderId === user?.id && m.receiverId === activeChat._id) || (m.senderId === activeChat._id && m.receiverId === user?.id))
               )} 
               currentUserId={user?.id} 
               onMarkViewed={handleMarkViewed}
               onDeleteMessage={handleDeleteMessage}
+              onReply={handleReplyMessage}
+              onReact={handleReact}
+              isGroupChat={activeChat.isGroup}
             />
             
             <MessageInput 
               onSendMessage={handleSendMessage} 
               onTyping={handleTyping}
               onStopTyping={handleStopTyping}
+              replyingToMessage={replyingToMessage}
+              onCancelReply={() => setReplyingToMessage(null)}
             />
           </>
         ) : (

@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Reply, Smile } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 
-export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete }) {
+export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete, onReply, onReact, isGroupChat, repliedMessage }) {
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [isWrapperHovered, setIsWrapperHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
   const [wasViewed, setWasViewed] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const containerRef = useRef(null);
 
   const showXRay = isHovered && isShiftDown;
@@ -75,15 +77,26 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
       onMouseLeave={() => setIsWrapperHovered(false)}
       style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: isSent ? 'flex-end' : 'flex-start' }}
     >
-      {isSent && isWrapperHovered && (
-        <button 
-          onClick={() => onDelete(message._id)}
-          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', opacity: 0.7 }}
-          title="Unsend for everyone"
-        >
-          <Trash2 size={18} />
+      <div style={{ display: 'flex', gap: '4px', opacity: isWrapperHovered ? 1 : 0, transition: 'opacity 0.2s', flexDirection: isSent ? 'row' : 'row-reverse', alignItems: 'center' }}>
+        {isSent && (
+          <button onClick={() => onDelete(message._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Unsend">
+            <Trash2 size={16} />
+          </button>
+        )}
+        <button onClick={() => onReply(message)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="Reply">
+          <Reply size={16} />
         </button>
-      )}
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="React">
+            <Smile size={16} />
+          </button>
+          {showEmojiPicker && (
+            <div style={{ position: 'absolute', bottom: '30px', left: isSent ? 'auto' : 0, right: isSent ? 0 : 'auto', zIndex: 1000 }}>
+              <EmojiPicker onEmojiClick={(emojiData) => { onReact(message._id, emojiData.emoji); setShowEmojiPicker(false); }} />
+            </div>
+          )}
+        </div>
+      </div>
       <div 
         className="message-bubble"
         ref={containerRef}
@@ -96,27 +109,40 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         onTouchMove={handleMouseMove}
         style={{ minWidth: (message.attachment || message.viewed) ? '120px' : '80px' }}
       >
-        {/* The Base Layer: Gibberish Text or Photo Placeholder */}
         <div style={{ 
           opacity: showXRay ? 0.2 : 1, 
           transition: 'opacity 0.2s',
           fontFamily: (message.attachment || message.viewed) ? 'inherit' : 'monospace',
           wordBreak: 'break-all',
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: 'column',
           gap: '8px'
         }}>
-          {message.viewed ? (
-            <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
-          ) : message.attachment ? (
-            <div style={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isSent ? '#c1e5a5' : '#e2e8f0', borderRadius: '8px' }}>
-              <span style={{ fontWeight: 'bold' }}>{isSent ? '📸 Photo Sent' : '📸 View Once Photo'}</span>
+          {isGroupChat && !isSent && (
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--wa-teal-dark)' }}>
+              {message.senderName}
             </div>
-          ) : (
-            message.scrambledText
           )}
-          {/* Invisible spacer for the time to float right properly */}
-          {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+          {repliedMessage && (
+            <div style={{ padding: '6px', background: 'rgba(0,0,0,0.05)', borderLeft: '4px solid var(--wa-teal-light)', borderRadius: '4px', fontSize: '13px', color: '#555' }}>
+              <span style={{ fontWeight: 'bold', color: 'var(--wa-teal-light)' }}>{repliedMessage.senderName || 'User'}</span><br />
+              {repliedMessage.plainText}
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {message.viewed ? (
+              <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
+            ) : message.attachment ? (
+              <div style={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isSent ? '#c1e5a5' : '#e2e8f0', borderRadius: '8px' }}>
+                <span style={{ fontWeight: 'bold' }}>{isSent ? '📸 Photo Sent' : '📸 View Once Photo'}</span>
+              </div>
+            ) : (
+              message.scrambledText
+            )}
+            {/* Invisible spacer for the time to float right properly */}
+            {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+          </div>
         </div>
 
         {/* The X-Ray Layer: Real Text / Image */}
@@ -143,24 +169,46 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
             gap: '8px'
           }}
         >
-          {message.viewed ? (
-            <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
-          ) : (
-            <>
-              {message.attachment && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
-                  {isSent ? (
-                    <span style={{ fontWeight: 'bold' }}>📸 Photo Sent (View Once)</span>
-                  ) : (
-                    <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
-                  )}
-                </div>
-              )}
-              {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}
-            </>
+          {isGroupChat && !isSent && (
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--wa-teal-dark)' }}>
+              {message.senderName}
+            </div>
           )}
-          {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+          {repliedMessage && (
+            <div style={{ padding: '6px', background: 'rgba(0,0,0,0.05)', borderLeft: '4px solid var(--wa-teal-light)', borderRadius: '4px', fontSize: '13px', color: '#555' }}>
+              <span style={{ fontWeight: 'bold', color: 'var(--wa-teal-light)' }}>{repliedMessage.senderName || 'User'}</span><br />
+              {repliedMessage.plainText}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {message.viewed ? (
+              <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
+            ) : (
+              <>
+                {message.attachment && (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
+                    {isSent ? (
+                      <span style={{ fontWeight: 'bold' }}>📸 Photo Sent (View Once)</span>
+                    ) : (
+                      <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                    )}
+                  </div>
+                )}
+                {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}
+              </>
+            )}
+            {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+          </div>
         </div>
+        
+        {message.reactions && message.reactions.length > 0 && (
+          <div style={{ position: 'absolute', bottom: '-10px', right: '10px', display: 'flex', gap: '2px', background: '#fff', borderRadius: '12px', padding: '2px 4px', border: '1px solid #ddd', zIndex: 12 }}>
+            {Array.from(new Set(message.reactions.map(r => r.emoji))).map(emoji => (
+              <span key={emoji} style={{ fontSize: '12px' }}>{emoji}</span>
+            ))}
+          </div>
+        )}
         
         <div className="message-time" style={{ position: 'absolute', bottom: '4px', right: '12px', zIndex: 11 }}>
           {new Date(message.createdAt || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

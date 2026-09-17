@@ -3,7 +3,7 @@ import { scrambleText } from '../crypto';
 import { Send, Smile, Paperclip, X } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
-export default function MessageInput({ onSendMessage, onTyping, onStopTyping }) {
+export default function MessageInput({ onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
   const [text, setText] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -78,9 +78,19 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping }) 
   };
 
   return (
-    <div className="input-area" style={{ position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      {showEmojiPicker && (
-        <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+      {replyingToMessage && (
+        <div style={{ padding: '8px 12px', background: '#e2e8f0', borderLeft: '4px solid var(--wa-teal-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#64748b', fontSize: '13px' }}>
+            <span style={{ fontWeight: 'bold', color: 'var(--wa-teal-light)' }}>Replying to message</span><br />
+            {replyingToMessage.plainText}
+          </div>
+          <button onClick={onCancelReply} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={16} /></button>
+        </div>
+      )}
+      <div className="input-area" style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
+        {showEmojiPicker && (
+          <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
           <EmojiPicker onEmojiClick={onEmojiClick} />
         </div>
       )}
@@ -136,6 +146,7 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping }) 
       >
         <Send size={24} />
       </button>
+      </div>
     </div>
   );
 }

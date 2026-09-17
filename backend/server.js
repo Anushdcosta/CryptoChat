@@ -10,6 +10,7 @@ const crypto = require('crypto');
 
 const User = require('./models/User');
 const Message = require('./models/Message');
+const Room = require('./models/Room');
 
 const app = express();
 app.use(cors());
@@ -134,19 +135,30 @@ app.get('/api/users/recent', async (req, res) => {
     // Extract unique user IDs that are not me
     const userIds = new Set();
     messages.forEach(msg => {
-      if (msg.senderId.toString() !== myId) userIds.add(msg.senderId.toString());
-      if (msg.receiverId.toString() !== myId) userIds.add(msg.receiverId.toString());
+      if (msg.senderId && msg.senderId.toString() !== myId) userIds.add(msg.senderId.toString());
+      if (msg.receiverId && msg.receiverId.toString() !== myId) userIds.add(msg.receiverId.toString());
     });
 
     const users = await User.find({ _id: { $in: Array.from(userIds) } }).select('-password');
-    res.json(users);
+    const rooms = await Room.find({ members: myId });
+
+    const formattedRooms = rooms.map(room => ({
+      _id: room._id,
+      username: room.name,
+      isGroup: true,
+      isOnline: true,
+      status: `${room.members.length} members`
+    }));
+
+    res.json([...formattedRooms, ...users]);
   } catch (error) {
+    console.error('Recent error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Get chat history between two users
-app.get('/api/messages/:userId', async (req, res) => {
+// Get chat history (can be a user or a room)
+app.get('/api/messages/:chatId', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
@@ -154,19 +166,32 @@ app.get('/api/messages/:userId', async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const myId = decoded.userId;
-    const otherId = req.params.userId;
+    const chatId = req.params.chatId;
 
-    const messages = await Message.find({
-      $or: [
-        { senderId: myId, receiverId: otherId },
-        { senderId: otherId, receiverId: myId }
-      ]
-    }).sort({ createdAt: 1 });
+    const isRoom = await Room.findById(chatId);
+    let messages;
+
+    if (isRoom) {
+      messages = await Message.find({ roomId: chatId })
+        .sort({ createdAt: 1 })
+        .populate('senderId', 'username');
+    } else {
+      messages = await Message.find({
+        $or: [
+          { senderId: myId, receiverId: chatId },
+          { senderId: chatId, receiverId: myId }
+        ]
+      }).sort({ createdAt: 1 });
+    }
 
     const decryptedMessages = messages.map(msg => ({
       _id: msg._id,
-      senderId: msg.senderId,
+      senderId: isRoom ? msg.senderId._id : msg.senderId,
+      senderName: isRoom ? msg.senderId.username : undefined,
       receiverId: msg.receiverId,
+      roomId: msg.roomId,
+      replyTo: msg.replyTo,
+      reactions: msg.reactions,
       plainText: decrypt(msg.plainText),
       scrambledText: msg.scrambledText,
       attachment: msg.attachment ? decrypt(msg.attachment) : null,
@@ -209,10 +234,31 @@ io.on('connection', async (socket) => {
   // Broadcast to everyone that this user is online
   io.emit('user_status_change', { userId: socket.userId, isOnline: true });
 
+  // Auto-join groups
+  const userRooms = await Room.find({ members: socket.userId });
+  userRooms.forEach(room => socket.join(room._id.toString()));
+
+  // Create Group
+  socket.on('create_group', async (data) => {
+    try {
+      const { name, members } = data;
+      if (!members.includes(socket.userId)) members.push(socket.userId);
+      const newRoom = new Room({ name, members, admin: socket.userId });
+      await newRoom.save();
+      
+      members.forEach(memberId => {
+        io.to(memberId.toString()).emit('group_created', newRoom);
+      });
+      socket.join(newRoom._id.toString());
+    } catch (e) {
+      console.error('Create group error:', e);
+    }
+  });
+
   // Direct Messaging
   socket.on('send_direct_message', async (data) => {
     try {
-      const { receiverId, plainText, scrambledText, attachment, timestamp } = data;
+      const { receiverId, plainText, scrambledText, attachment, replyTo } = data;
       
       const encryptedText = encrypt(plainText);
       const encryptedAttachment = attachment ? encrypt(attachment) : null;
@@ -221,6 +267,7 @@ io.on('connection', async (socket) => {
       const newMessage = new Message({
         senderId: socket.userId,
         receiverId,
+        replyTo,
         plainText: encryptedText,
         scrambledText,
         attachment: encryptedAttachment,
@@ -232,7 +279,8 @@ io.on('connection', async (socket) => {
         _id: newMessage._id,
         senderId: socket.userId,
         receiverId,
-        plainText, // We send the decrypted version back over the wire
+        replyTo,
+        plainText,
         scrambledText,
         attachment,
         viewed: false,
@@ -246,6 +294,80 @@ io.on('connection', async (socket) => {
       
     } catch (error) {
       console.error('Message error:', error);
+    }
+  });
+
+  // Group Messaging
+  socket.on('send_group_message', async (data) => {
+    try {
+      const { roomId, plainText, scrambledText, attachment, replyTo } = data;
+      const encryptedText = encrypt(plainText);
+      const encryptedAttachment = attachment ? encrypt(attachment) : null;
+      
+      const newMessage = new Message({
+        senderId: socket.userId,
+        roomId,
+        replyTo,
+        plainText: encryptedText,
+        scrambledText,
+        attachment: encryptedAttachment
+      });
+      await newMessage.save();
+
+      const sender = await User.findById(socket.userId);
+
+      const payload = {
+        _id: newMessage._id,
+        senderId: socket.userId,
+        senderName: sender.username,
+        roomId,
+        replyTo,
+        plainText,
+        scrambledText,
+        attachment,
+        timestamp: newMessage.createdAt
+      };
+
+      io.to(roomId).emit('receive_group_message', payload);
+    } catch (e) {
+      console.error('Group message error:', e);
+    }
+  });
+
+  // Reactions
+  socket.on('react_message', async (data) => {
+    try {
+      const { messageId, emoji } = data;
+      const msg = await Message.findById(messageId);
+      if (!msg) return;
+
+      // Check if user already reacted
+      const existingReactionIndex = msg.reactions.findIndex(r => r.userId.toString() === socket.userId);
+      if (existingReactionIndex >= 0) {
+        msg.reactions[existingReactionIndex].emoji = emoji;
+      } else {
+        msg.reactions.push({ userId: socket.userId, emoji });
+      }
+      await msg.save();
+
+      const reactionPayload = {
+        messageId,
+        userId: socket.userId,
+        emoji,
+        roomId: msg.roomId,
+        receiverId: msg.receiverId,
+        senderId: msg.senderId
+      };
+
+      // Broadcast reaction
+      if (msg.roomId) {
+        io.to(msg.roomId.toString()).emit('message_reacted', reactionPayload);
+      } else {
+        io.to(msg.receiverId.toString()).emit('message_reacted', reactionPayload);
+        io.to(msg.senderId.toString()).emit('message_reacted', reactionPayload);
+      }
+    } catch (e) {
+      console.error('Reaction error:', e);
     }
   });
 
