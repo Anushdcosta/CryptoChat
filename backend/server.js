@@ -79,7 +79,7 @@ app.post('/api/auth/register', async (req, res) => {
     await newUser.save();
 
     const token = jwt.sign({ userId: newUser._id, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: newUser._id, username: newUser.username } });
+    res.json({ token, user: { id: newUser._id, username: newUser.username, avatar: newUser.avatar, status: newUser.status } });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -96,7 +96,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ userId: user._id, username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, username: user.username } });
+    res.json({ token, user: { id: user._id, username: user.username, avatar: user.avatar, status: user.status } });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -196,12 +196,39 @@ app.get('/api/messages/:chatId', async (req, res) => {
       scrambledText: msg.scrambledText,
       attachment: msg.attachment ? decrypt(msg.attachment) : null,
       viewed: msg.viewed,
-      createdAt: msg.createdAt,
-      read: msg.read
+      read: msg.read,
+      createdAt: msg.createdAt
     }));
 
     res.json(decryptedMessages);
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update user profile (avatar and status)
+app.put('/api/users/profile', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const { avatar, status } = req.body;
+    
+    const updateData = {};
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (status !== undefined) updateData.status = status;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      decoded.userId,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Profile update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -417,10 +444,28 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // Mark Messages Read
+  socket.on('mark_messages_read', async (data) => {
+    try {
+      const { senderId } = data; 
+      const result = await Message.updateMany(
+        { senderId, receiverId: socket.userId, read: false },
+        { read: true }
+      );
+      
+      if (result.modifiedCount > 0) {
+        io.to(senderId.toString()).emit('messages_read', { receiverId: socket.userId });
+      }
+    } catch (e) {
+      console.error('Mark read error:', e);
+    }
+  });
+
   socket.on('disconnect', async () => {
     console.log(`User disconnected: ${socket.userId}`);
-    await User.findByIdAndUpdate(socket.userId, { isOnline: false, socketId: null });
-    io.emit('user_status_change', { userId: socket.userId, isOnline: false });
+    const now = new Date();
+    await User.findByIdAndUpdate(socket.userId, { isOnline: false, socketId: null, lastSeen: now });
+    io.emit('user_status_change', { userId: socket.userId, isOnline: false, lastSeen: now });
   });
 });
 

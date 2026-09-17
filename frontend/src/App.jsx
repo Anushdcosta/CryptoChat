@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
+import ProfileModal from './components/ProfileModal';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
@@ -33,6 +34,7 @@ export default function App() {
 
   // Advanced Features State
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
 
   // Refs for socket callbacks
@@ -173,6 +175,15 @@ export default function App() {
       setMessages(prev => prev.filter(m => m._id !== messageId));
     });
 
+    newSocket.on('messages_read', (data) => {
+      setMessages(prev => prev.map(m => {
+        if (m.receiverId === data.receiverId && !m.read) {
+          return { ...m, read: true };
+        }
+        return m;
+      }));
+    });
+
     newSocket.on('group_created', (room) => {
       setUsers(prev => {
         const formattedRoom = {
@@ -215,21 +226,11 @@ export default function App() {
     newSocket.on('user_status_change', (data) => {
       setUsers(prev => {
         const exists = prev.find(u => u._id === data.userId);
-        if (!exists) {
-          // If we don't know this user, fetch the recent list again
-          fetch(`${SOCKET_URL}/api/users/recent`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-            .then(res => res.json())
-            .then(data => {
-              if (Array.isArray(data)) setUsers(data);
-            })
-            .catch(console.error);
-          return prev;
+        if (exists) {
+          return prev.map(u => u._id === data.userId ? { ...u, isOnline: data.isOnline, lastSeen: data.lastSeen } : u);
         }
-        return prev.map(u => 
-          u._id === data.userId ? { ...u, isOnline: data.isOnline } : u
-        );
+        // If not found in current list, we can't easily add them without username, so ignore.
+        return prev;
       });
     });
 
@@ -238,21 +239,21 @@ export default function App() {
 
   // Fetch Messages when Active Chat changes
   useEffect(() => {
-    if (!activeChat || !token) return;
-    
-    fetch(`${SOCKET_URL}/api/messages/${activeChat._id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => {
-        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
-        return res.json();
+    if (activeChat && token) {
+      fetch(`${SOCKET_URL}/api/messages/${activeChat._id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-      .then(data => {
-        if (Array.isArray(data)) setMessages(data);
-        else console.error('Failed to load messages:', data);
-      })
+      .then(res => res.json())
+      .then(data => setMessages(data))
       .catch(err => console.error(err));
+    }
   }, [activeChat, token]);
+
+  useEffect(() => {
+    if (socket && activeChat && activeChat._id) {
+      socket.emit('mark_messages_read', { senderId: activeChat._id });
+    }
+  }, [activeChat, messages]);
 
   const handleSendMessage = (data) => {
     if (!socket || !activeChat) return;
@@ -318,6 +319,27 @@ export default function App() {
     }
   };
 
+  const handleUpdateProfile = async (data) => {
+    try {
+      const res = await fetch(`${SOCKET_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        const newUser = { id: updatedUser._id, username: updatedUser.username, avatar: updatedUser.avatar, status: updatedUser.status };
+        setUser(newUser);
+        localStorage.setItem('user', JSON.stringify(newUser));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // --- RENDER AUTH SCREEN ---
   if (!token) {
     return (
@@ -378,8 +400,16 @@ export default function App() {
         <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="chat-avatar" style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0 }}>
-                <User size={20} />
+              <div 
+                className="chat-avatar" 
+                style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0, overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => setShowProfileModal(true)}
+              >
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <User size={20} />
+                )}
               </div>
               <span style={{ fontWeight: 'bold' }}>{user?.username}</span>
             </div>
@@ -414,14 +444,14 @@ export default function App() {
               style={{ background: activeChat?._id === u._id ? '#f5f6f6' : 'transparent' }}
               onClick={() => setActiveChat(u)}
             >
-              <div className="chat-avatar" style={{ margin: 0, marginRight: 16 }}>
-                {u.isGroup ? <Users size={20} color="#fff" /> : u.username.charAt(0).toUpperCase()}
+              <div className="chat-avatar" style={{ margin: 0, marginRight: 16, overflow: 'hidden' }}>
+                {u.isGroup ? <Users size={20} color="#fff" /> : (u.avatar ? <img src={u.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : u.username.charAt(0).toUpperCase())}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 500, fontSize: '16px' }}>{u.username}</span>
                   <span style={{ fontSize: '12px', color: u.isOnline ? '#25D366' : 'var(--wa-text-secondary)' }}>
-                    {u.isOnline ? 'online' : 'offline'}
+                    {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'offline')}
                   </span>
                 </div>
                 <div style={{ fontSize: '13px', color: typingUsers[u._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: typingUsers[u._id] ? 'bold' : 'normal' }}>
@@ -447,6 +477,14 @@ export default function App() {
         />
       )}
 
+      {showProfileModal && (
+        <ProfileModal 
+          user={user}
+          onClose={() => setShowProfileModal(false)}
+          onSave={handleUpdateProfile}
+        />
+      )}
+
       {/* Main Chat Panel */}
       <div className={`chat-panel ${!activeChat ? 'mobile-hidden' : ''}`}>
         {activeChat ? (
@@ -461,13 +499,13 @@ export default function App() {
                   ←
                 </button>
                 <div className="panel-title">
-                  <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0 }}>
-                    {activeChat.username.charAt(0).toUpperCase()}
+                  <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0, marginRight: 16, overflow: 'hidden' }}>
+                    {activeChat.isGroup ? <Users size={20} color="#fff" /> : (activeChat.avatar ? <img src={activeChat.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : activeChat.username.charAt(0).toUpperCase())}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: '16px' }}>{activeChat.username}</span>
-                    <span className="status-indicator" style={{ color: typingUsers[activeChat._id] ? 'var(--wa-teal-light)' : 'inherit', fontWeight: typingUsers[activeChat._id] ? 'bold' : 'normal' }}>
-                      {typingUsers[activeChat._id] ? 'typing...' : (activeChat.isOnline ? 'online' : 'offline')}
+                    <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{activeChat.username}</span>
+                    <span className="status-indicator" style={{ color: typingUsers[activeChat._id] ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', fontWeight: typingUsers[activeChat._id] ? 'bold' : 'normal', fontSize: '13px' }}>
+                      {typingUsers[activeChat._id] ? 'typing...' : (activeChat.isGroup ? activeChat.status : (activeChat.isOnline ? 'online' : `last seen ${activeChat.lastSeen ? new Date(activeChat.lastSeen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'offline'}`))}
                     </span>
                   </div>
                 </div>
