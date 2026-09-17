@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { User, Lock, ArrowRight, Search, X, Fingerprint } from 'lucide-react';
+import { User, Lock, ArrowRight, Search, X } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
-import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { Capacitor } from '@capacitor/core';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
@@ -22,11 +21,9 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
+  // Search State
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Security State
-  const [isUnlocked, setIsUnlocked] = useState(!Capacitor.isNativePlatform());
 
   // Refs for socket callbacks
   const activeChatRef = useRef(null);
@@ -82,9 +79,6 @@ export default function App() {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    if (Capacitor.isNativePlatform()) {
-      setIsUnlocked(false);
-    }
     if (socket) socket.disconnect();
   };
 
@@ -257,49 +251,6 @@ export default function App() {
               style={{ background: 'none', border: 'none', color: 'var(--wa-teal-light)', cursor: 'pointer', textDecoration: 'underline' }}
             >
               {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Login"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- RENDER SECURITY UNLOCK SCREEN ---
-  // Only native platforms (mobile) will ever have token && !isUnlocked
-  if (token && !isUnlocked) {
-    const handleBiometricUnlock = async () => {
-      try {
-        await NativeBiometric.verifyIdentity({
-          reason: "Unlock CryptoChat",
-          title: "Verify Identity"
-        });
-        setIsUnlocked(true);
-      } catch (e) {
-        console.error('Biometric error:', e);
-      }
-    };
-
-    // Auto-prompt biometric on mount
-    useEffect(() => {
-      handleBiometricUnlock();
-    }, []);
-
-    return (
-      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '350px', textAlign: 'center' }}>
-          <Fingerprint size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
-          <h2 style={{ color: 'var(--wa-teal-dark)' }}>App Locked</h2>
-          <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>Verify your identity to read messages.</p>
-          <button 
-            onClick={handleBiometricUnlock}
-            style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px 24px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            Unlock with Biometrics
-          </button>
-          
-          <div style={{ marginTop: '30px' }}>
-            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textDecoration: 'underline' }}>
-              Logout
             </button>
           </div>
         </div>
