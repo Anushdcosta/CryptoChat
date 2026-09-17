@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { User, Lock, ArrowRight, Search, X, Fingerprint, KeyRound } from 'lucide-react';
+import { User, Lock, ArrowRight, Search, X, Fingerprint } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { Capacitor } from '@capacitor/core';
@@ -26,10 +26,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Security State
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [pinMode, setPinMode] = useState('verify'); // 'create' or 'verify'
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(!Capacitor.isNativePlatform());
 
   // Refs for socket callbacks
   const activeChatRef = useRef(null);
@@ -75,11 +72,6 @@ export default function App() {
       
       // Request notification permissions after login
       requestNotificationPermissions();
-      
-      // Determine if we need to set a PIN for the first time
-      if (!Capacitor.isNativePlatform() && !localStorage.getItem('appPin')) {
-        setPinMode('create');
-      }
     } catch (err) {
       setAuthError(err.message);
     }
@@ -88,12 +80,11 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    // Keep appPin so the device remains locked to the user if they log in again? 
-    // Actually, maybe clear it so a new user can set their own PIN.
-    localStorage.removeItem('appPin');
     setToken(null);
     setUser(null);
-    setIsUnlocked(false);
+    if (Capacitor.isNativePlatform()) {
+      setIsUnlocked(false);
+    }
     if (socket) socket.disconnect();
   };
 
@@ -104,8 +95,14 @@ export default function App() {
     fetch(`${SOCKET_URL}/api/users/recent`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setUsers(data))
+      .then(res => {
+        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) setUsers(data);
+        else console.error('Failed to load recent users:', data);
+      })
       .catch(err => console.error(err));
   }, [token]);
 
@@ -116,8 +113,14 @@ export default function App() {
     fetch(`${SOCKET_URL}/api/users`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setAllUsers(data))
+      .then(res => {
+        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) setAllUsers(data);
+        else console.error('Failed to load all users:', data);
+      })
       .catch(err => console.error(err));
   }, [token, isSearching]);
 
@@ -163,7 +166,9 @@ export default function App() {
             headers: { 'Authorization': `Bearer ${token}` }
           })
             .then(res => res.json())
-            .then(data => setUsers(data))
+            .then(data => {
+              if (Array.isArray(data)) setUsers(data);
+            })
             .catch(console.error);
           return prev;
         }
@@ -183,8 +188,14 @@ export default function App() {
     fetch(`${SOCKET_URL}/api/messages/${activeChat._id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setMessages(data))
+      .then(res => {
+        if (res.status === 401) { handleLogout(); throw new Error('Unauthorized'); }
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) setMessages(data);
+        else console.error('Failed to load messages:', data);
+      })
       .catch(err => console.error(err));
   }, [activeChat, token]);
 
@@ -254,9 +265,8 @@ export default function App() {
   }
 
   // --- RENDER SECURITY UNLOCK SCREEN ---
+  // Only native platforms (mobile) will ever have token && !isUnlocked
   if (token && !isUnlocked) {
-    const isNative = Capacitor.isNativePlatform();
-
     const handleBiometricUnlock = async () => {
       try {
         const result = await NativeBiometric.verifyIdentity({
@@ -269,73 +279,24 @@ export default function App() {
       }
     };
 
-    const handlePinSubmit = (e) => {
-      e.preventDefault();
-      setPinError('');
-      if (pinMode === 'create') {
-        if (pinInput.length < 4) {
-          setPinError('PIN must be at least 4 digits');
-          return;
-        }
-        localStorage.setItem('appPin', pinInput);
-        setIsUnlocked(true);
-      } else {
-        if (pinInput === localStorage.getItem('appPin')) {
-          setIsUnlocked(true);
-        } else {
-          setPinError('Incorrect PIN');
-          setPinInput('');
-        }
-      }
-    };
-
-    // Auto-prompt biometric on mount if native
+    // Auto-prompt biometric on mount
     useEffect(() => {
-      if (isNative) {
-        handleBiometricUnlock();
-      } else {
-        if (!localStorage.getItem('appPin')) setPinMode('create');
-      }
-    }, [isNative]);
+      handleBiometricUnlock();
+    }, []);
 
     return (
       <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '350px', textAlign: 'center' }}>
-          {isNative ? (
-            <>
-              <Fingerprint size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
-              <h2 style={{ color: 'var(--wa-teal-dark)' }}>App Locked</h2>
-              <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>Verify your identity to read messages.</p>
-              <button 
-                onClick={handleBiometricUnlock}
-                style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px 24px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Unlock with Biometrics
-              </button>
-            </>
-          ) : (
-            <>
-              <KeyRound size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
-              <h2 style={{ color: 'var(--wa-teal-dark)' }}>{pinMode === 'create' ? 'Create a PIN' : 'App Locked'}</h2>
-              <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>
-                {pinMode === 'create' ? 'Set a 4-digit PIN to secure your X-Ray lens on this device.' : 'Enter your 4-digit PIN to unlock.'}
-              </p>
-              <form onSubmit={handlePinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {pinError && <div style={{ color: 'red', fontSize: '14px' }}>{pinError}</div>}
-                <input 
-                  type="password" 
-                  placeholder="Enter PIN" 
-                  value={pinInput}
-                  onChange={e => setPinInput(e.target.value.replace(/\D/g, '').slice(0,4))}
-                  style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '24px', textAlign: 'center', letterSpacing: '8px' }}
-                  required
-                />
-                <button type="submit" style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  {pinMode === 'create' ? 'Save PIN & Unlock' : 'Unlock'}
-                </button>
-              </form>
-            </>
-          )}
+          <Fingerprint size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
+          <h2 style={{ color: 'var(--wa-teal-dark)' }}>App Locked</h2>
+          <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>Verify your identity to read messages.</p>
+          <button 
+            onClick={handleBiometricUnlock}
+            style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px 24px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Unlock with Biometrics
+          </button>
+          
           <div style={{ marginTop: '30px' }}>
             <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textDecoration: 'underline' }}>
               Logout
@@ -348,8 +309,8 @@ export default function App() {
 
   // --- RENDER MAIN APP ---
   const displayedUsers = isSearching 
-    ? allUsers.filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-    : users;
+    ? (Array.isArray(allUsers) ? allUsers : []).filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    : (Array.isArray(users) ? users : []);
 
   return (
     <div className="app-container">
