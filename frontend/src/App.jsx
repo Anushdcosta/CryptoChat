@@ -405,7 +405,7 @@ export default function App() {
   // --- RENDER AUTH SCREEN ---
   if (!token) {
     return (
-      <GoogleOAuthProvider clientId="PLACEHOLDER_CLIENT_ID">
+      <GoogleOAuthProvider clientId="451500121141-gre6ics6sn63ns855m99cbilja4ur1ga.apps.googleusercontent.com">
         <Login onAuthSuccess={handleAuthSuccess} authError={authError} />
       </GoogleOAuthProvider>
     );
