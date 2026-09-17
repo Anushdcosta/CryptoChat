@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Phone, Mail } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 
 export default function Login() {
   const [authMode, setAuthMode] = useState('login'); // login, register, phone
@@ -37,9 +39,15 @@ export default function Login() {
   const handleGoogleAuth = async () => {
     setError('');
     try {
-      await signInWithPopup(auth, googleProvider);
+      if (Capacitor.isNativePlatform()) {
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+        await signInWithCredential(auth, credential);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Google Sign-In failed');
     }
   };
 

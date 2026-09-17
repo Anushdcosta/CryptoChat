@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, ArrowRight, Search, X, Users, Plus } from 'lucide-react';
+import { User, Lock, ArrowRight, Search, X, Users, Plus, MessageSquarePlus, MoreVertical } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
-import ProfileModal from './components/ProfileModal';
+import SettingsModal from './components/SettingsModal';
 import GroupSettingsModal from './components/GroupSettingsModal';
 import Login from './components/Login';
 
@@ -17,6 +17,7 @@ import { collection, doc, getDoc, setDoc, updateDoc, onSnapshot, query, where, o
 export default function App() {
   const [user, setUser] = useState(null);
   const [authResolved, setAuthResolved] = useState(false);
+  const [authError, setAuthError] = useState(null);
   
   const [remoteUsers, setRemoteUsers] = useState([]);
   const [remoteRooms, setRemoteRooms] = useState([]);
@@ -25,9 +26,10 @@ export default function App() {
   
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
   
   const [showGroupModal, setShowGroupModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -35,37 +37,44 @@ export default function App() {
   // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userRef);
-        
-        let userData = {
-          _id: firebaseUser.uid,
-          email: firebaseUser.email || firebaseUser.phoneNumber,
-          isOnline: true,
-          lastSeen: Date.now(),
-        };
+      try {
+        if (firebaseUser) {
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userRef);
+          
+          let userData = {
+            _id: firebaseUser.uid,
+            email: firebaseUser.email || firebaseUser.phoneNumber,
+            isOnline: true,
+            lastSeen: Date.now(),
+          };
 
-        if (userDoc.exists()) {
-          userData = { ...userDoc.data(), ...userData };
+          if (userDoc.exists()) {
+            userData = { ...userDoc.data(), ...userData };
+          } else {
+            userData.username = firebaseUser.displayName || 'New User';
+            userData.avatar = firebaseUser.photoURL || '';
+            userData.status = 'Hey there! I am using CryptoChat.';
+          }
+
+          await setDoc(userRef, userData, { merge: true });
+          setUser(userData);
+          
+          if (!localStorage.getItem('hasSeenTutorial')) {
+            setShowTutorial(true);
+            localStorage.setItem('hasSeenTutorial', 'true');
+          }
+          requestNotificationPermissions();
         } else {
-          userData.username = firebaseUser.displayName || 'New User';
-          userData.avatar = firebaseUser.photoURL || '';
-          userData.status = 'Hey there! I am using CryptoChat.';
+          setUser(null);
         }
-
-        await setDoc(userRef, userData, { merge: true });
-        setUser(userData);
-        
-        if (!localStorage.getItem('hasSeenTutorial')) {
-          setShowTutorial(true);
-          localStorage.setItem('hasSeenTutorial', 'true');
-        }
-        requestNotificationPermissions();
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error("Auth state change error:", err);
+        setAuthError(err.message || 'An unknown error occurred during login.');
+        setUser(null); // fallback
+      } finally {
+        setAuthResolved(true);
       }
-      setAuthResolved(true);
     });
     
     // Set offline on unload
@@ -122,14 +131,18 @@ export default function App() {
     if (!user || !activeChat) return;
     let q;
     if (activeChat.isGroup) {
-      q = query(collection(db, 'messages'), where('roomId', '==', activeChat._id), orderBy('createdAt', 'asc'));
+      q = query(collection(db, 'messages'), where('roomId', '==', activeChat._id));
     } else {
       const threadId = [user._id, activeChat._id].sort().join('_');
-      q = query(collection(db, 'messages'), where('threadId', '==', threadId), orderBy('createdAt', 'asc'));
+      q = query(collection(db, 'messages'), where('threadId', '==', threadId));
     }
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = [];
       snapshot.forEach(d => msgs.push({ _id: d.id, ...d.data() }));
+      
+      // Sort in memory to avoid needing Firestore composite indexes
+      msgs.sort((a, b) => a.createdAt - b.createdAt);
+      
       setMessages(msgs);
       
       // Mark read
@@ -143,12 +156,36 @@ export default function App() {
   }, [activeChat, user]);
 
   useEffect(() => {
-    CapacitorApp.addListener('backButton', () => {
-      if (activeChat) setActiveChat(null);
-      else CapacitorApp.exitApp();
+    CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      if (activeChat) {
+        setActiveChat(null);
+      } else if (Capacitor.isNativePlatform() && !canGoBack) {
+        CapacitorApp.exitApp();
+      } else {
+        window.history.back();
+      }
     });
-    return () => CapacitorApp.removeAllListeners();
+
+    // Remove the initial splash loader if it exists
+    const loader = document.getElementById('initial-loader');
+    if (loader) loader.remove();
+
+    return () => {
+      CapacitorApp.removeAllListeners();
+    };
   }, [activeChat]);
+
+  // 5. Theme Listener
+  useEffect(() => {
+    const root = document.documentElement;
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (isDark) {
+      root.setAttribute('data-theme', 'dark');
+    } else {
+      root.removeAttribute('data-theme');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const handleLogout = async () => {
     if (user) {
@@ -219,6 +256,23 @@ export default function App() {
 
   if (!authResolved) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
 
+  if (authError && !user) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', textAlign: 'center', maxWidth: '400px' }}>
+          <h2 style={{ color: '#ef4444', marginBottom: '15px' }}>Authentication Failed</h2>
+          <p style={{ color: '#64748b', marginBottom: '20px' }}>{authError}</p>
+          <button 
+            onClick={() => { setAuthError(null); setAuthResolved(false); auth.signOut(); window.location.reload(); }}
+            style={{ background: 'var(--wa-teal-light)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Login />;
   }
@@ -234,41 +288,45 @@ export default function App() {
       <div className={`sidebar ${activeChat ? 'mobile-hidden' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div 
-                className="chat-avatar" 
-                style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0, overflow: 'hidden', cursor: 'pointer' }}
-                onClick={() => setShowProfileModal(true)}
-              >
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User size={20} />
-                )}
-              </div>
-              <span style={{ fontWeight: 'bold' }}>{user?.username}</span>
+            <div 
+              className="chat-avatar" 
+              style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0, overflow: 'hidden', cursor: 'pointer' }}
+              onClick={() => setShowSettingsModal(true)}
+            >
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <User size={20} />
+              )}
             </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button onClick={() => setShowGroupModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-teal-dark)' }}>
-                <Plus size={20} />
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+              <button onClick={() => setShowGroupModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-icon-color)' }}>
+                <MessageSquarePlus size={20} />
               </button>
-              <button onClick={() => { setIsSearching(!isSearching); setSearchQuery(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-teal-dark)' }}>
-                {isSearching ? <X size={20} /> : <Search size={20} />}
-              </button>
-              <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--wa-teal-dark)', cursor: 'pointer', fontSize: '14px' }}>
-                Logout
+              <button onClick={() => setShowSettingsModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-icon-color)' }}>
+                <MoreVertical size={20} />
               </button>
             </div>
           </div>
-          {isSearching && (
+          <div style={{ position: 'relative', width: '100%' }}>
+            <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--wa-icon-color)' }}>
+              <Search size={18} />
+            </div>
             <input 
               type="text" 
-              placeholder="Search all users..." 
+              placeholder="Search or start a new chat" 
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setIsSearching(e.target.value.length > 0);
+              }}
+              style={{ 
+                padding: '8px 12px 8px 40px', borderRadius: '8px', border: 'none', 
+                width: '100%', boxSizing: 'border-box', background: 'var(--wa-search-bg)',
+                color: 'var(--wa-text-primary)', outline: 'none'
+              }}
             />
-          )}
+          </div>
         </div>
         
         <div className="sidebar-chats">
@@ -276,21 +334,21 @@ export default function App() {
             <div 
               key={u._id} 
               className="chat-item" 
-              style={{ background: activeChat?._id === u._id ? '#f5f6f6' : 'transparent' }}
+              style={{ background: activeChat?._id === u._id ? 'var(--wa-chat-hover)' : 'transparent' }}
               onClick={() => setActiveChat(u)}
             >
               <div className="chat-avatar" style={{ margin: 0, marginRight: 16, overflow: 'hidden' }}>
-                {u.isGroup ? <Users size={20} color="#fff" /> : (u.avatar ? <img src={u.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : u.username.charAt(0).toUpperCase())}
+                {u.isGroup ? <Users size={20} color="#fff" /> : (u.avatar ? <img src={u.avatar} alt="" referrerPolicy="no-referrer" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : u.username.charAt(0).toUpperCase())}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 500, fontSize: '16px' }}>{u.username}</span>
-                  <span style={{ fontSize: '12px', color: u.isOnline ? '#25D366' : 'var(--wa-text-secondary)' }}>
-                    {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'offline')}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: '500', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.username}</span>
+                  <span style={{ fontSize: '12px', color: u.isOnline ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginLeft: '10px', flexShrink: 0 }}>
+                    {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '13px', color: 'var(--wa-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--wa-text-secondary)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {u.status}
                   </div>
                 </div>
@@ -309,11 +367,14 @@ export default function App() {
         />
       )}
 
-      {showProfileModal && (
-        <ProfileModal 
+      {showSettingsModal && (
+        <SettingsModal 
           user={user}
-          onClose={() => setShowProfileModal(false)}
+          theme={theme}
+          setTheme={setTheme}
+          onClose={() => setShowSettingsModal(false)}
           onSave={handleUpdateProfile}
+          onLogout={handleLogout}
         />
       )}
 
@@ -347,7 +408,7 @@ export default function App() {
                 </button>
                 <div className="panel-title" style={{ cursor: activeChat.isGroup ? 'pointer' : 'default' }} onClick={() => activeChat.isGroup && setShowGroupSettingsModal(true)}>
                   <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0, marginRight: 16, overflow: 'hidden' }}>
-                    {activeChat.isGroup ? <Users size={20} color="#fff" /> : (activeChat.avatar ? <img src={activeChat.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : activeChat.username.charAt(0).toUpperCase())}
+                    {activeChat.isGroup ? <Users size={20} color="#fff" /> : (activeChat.avatar ? <img src={activeChat.avatar} alt="" referrerPolicy="no-referrer" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : activeChat.username.charAt(0).toUpperCase())}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{activeChat.username}</span>

@@ -109,8 +109,16 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
           <Smile size={16} />
         </button>
         {showEmojiPicker && (
-          <div style={{ position: 'absolute', bottom: '30px', left: isSent ? 'auto' : '-50px', right: isSent ? '-50px' : 'auto', zIndex: 1000 }}>
-            <EmojiPicker onEmojiClick={(emojiData) => { onReact(message._id, emojiData.emoji); setShowEmojiPicker(false); }} />
+          <div style={{ position: 'absolute', bottom: '35px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--wa-bg)', padding: '8px 16px', borderRadius: '32px', display: 'flex', gap: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', border: '1px solid var(--wa-border)' }}>
+            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+              <span 
+                key={emoji} 
+                style={{ fontSize: '24px', cursor: 'pointer', userSelect: 'none' }}
+                onClick={(e) => { e.stopPropagation(); onReact(message._id, emoji); setShowEmojiPicker(false); }}
+              >
+                {emoji}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -145,7 +153,10 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onTouchMove={onTouchMove}
-        style={{ minWidth: (message.attachment || message.viewed) ? '120px' : '80px' }}
+        style={{ 
+          minWidth: (message.attachment || message.viewed) ? '120px' : '80px',
+          marginBottom: (message.reactions && message.reactions.length > 0) ? '12px' : '0'
+        }}
       >
         <div style={{ 
           opacity: showXRay ? 0.2 : 1, 
@@ -176,7 +187,14 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
                 <span style={{ fontWeight: 'bold' }}>{isSent ? '📸 Photo Sent' : '📸 View Once Photo'}</span>
               </div>
             ) : (
-              message.scrambledText
+              <div style={{ display: 'grid' }}>
+                <div style={{ gridArea: '1 / 1', visibility: 'hidden', fontFamily: 'inherit', wordBreak: 'break-word' }}>
+                  {message.plainText !== '📸 Photo' && message.plainText}
+                </div>
+                <div style={{ gridArea: '1 / 1' }}>
+                  {message.scrambledText}
+                </div>
+              </div>
             )}
             {/* Invisible spacer for the time to float right properly */}
             {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
@@ -241,7 +259,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         </div>
         
         {message.reactions && message.reactions.length > 0 && (
-          <div style={{ position: 'absolute', bottom: '-10px', right: '10px', display: 'flex', gap: '2px', background: '#fff', borderRadius: '12px', padding: '2px 4px', border: '1px solid #ddd', zIndex: 12 }}>
+          <div style={{ position: 'absolute', bottom: '-12px', right: '10px', display: 'flex', gap: '2px', background: 'var(--wa-bg)', borderRadius: '12px', padding: '2px 6px', border: '1px solid var(--wa-border)', zIndex: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
             {Array.from(new Set(message.reactions.map(r => r.emoji))).map(emoji => (
               <span key={emoji} style={{ fontSize: '12px' }}>{emoji}</span>
             ))}

@@ -18,13 +18,14 @@
     "appId": "com.cryptochat.app",
     "productName": "CryptoChat",
     "directories": {
-      "output": "dist-electron"
+      "output": "build-electron"
     },
     "win": {
       "target": "nsis"
     }
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^6.3.1",
     "@capacitor/android": "^6.2.2",
     "@capacitor/app": "^6.0.3",
     "@capacitor/cli": "^6.2.2",

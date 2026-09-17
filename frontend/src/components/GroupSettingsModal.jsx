@@ -31,7 +31,7 @@ export default function GroupSettingsModal({ room, users, currentUserId, onClose
               <div key={m._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ccc', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                    {m.avatar ? <img src={m.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : m.username.charAt(0).toUpperCase()}
+                    {m.avatar ? <img src={m.avatar} alt="" referrerPolicy="no-referrer" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : m.username.charAt(0).toUpperCase()}
                   </div>
                   <span style={{ fontWeight: 500 }}>{m._id === currentUserId ? 'You' : m.username}</span>
                 </div>
@@ -59,7 +59,7 @@ export default function GroupSettingsModal({ room, users, currentUserId, onClose
               <div key={m._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ccc', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                    {m.avatar ? <img src={m.avatar} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : m.username.charAt(0).toUpperCase()}
+                    {m.avatar ? <img src={m.avatar} alt="" referrerPolicy="no-referrer" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : m.username.charAt(0).toUpperCase()}
                   </div>
                   <span style={{ fontWeight: 500 }}>{m.username}</span>
                 </div>

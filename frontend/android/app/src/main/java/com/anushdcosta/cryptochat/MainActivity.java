@@ -1,4 +1,4 @@
-package com.cryptochat.app;
+package com.anushdcosta.cryptochat;
 
 import com.getcapacitor.BridgeActivity;
 

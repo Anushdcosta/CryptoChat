@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "451500121141",
+    "project_id": "cryptochat-508915",
+    "storage_bucket": "cryptochat-508915.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:451500121141:android:b6c7ac50a306940e33e57c",
+        "android_client_info": {
+          "package_name": "com.anushdcosta.cryptochat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "451500121141-olb6o5o2rgolg00h3a2vm4sejghe5if8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZHmaG_3nhprzQqIuMXuYCSsgV7LU0naU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "451500121141-gre6ics6sn63ns855m99cbilja4ur1ga.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
