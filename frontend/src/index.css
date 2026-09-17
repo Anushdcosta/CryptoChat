@@ -17,7 +17,7 @@
   font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
-body {
+body, html {
   background-color: #d1d7db;
   color: var(--wa-text-primary);
   display: flex;
@@ -25,6 +25,8 @@ body {
   align-items: center;
   min-height: 100vh;
   margin: 0;
+  width: 100vw;
+  overflow: hidden;
 }
 
 #root {
@@ -105,6 +107,9 @@ body {
   flex-direction: column;
   background: var(--wa-bg);
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* WhatsApp Pattern Overlay */
@@ -146,10 +151,12 @@ body {
   flex: 1;
   padding: 20px 5%;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
   z-index: 1;
+  min-height: 0;
 }
 
 .input-area {
@@ -159,10 +166,14 @@ body {
   align-items: center;
   gap: 12px;
   z-index: 10;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .text-input-group {
   flex: 1;
+  min-width: 0;
   display: flex;
   background: #ffffff;
   border-radius: 24px;
@@ -173,6 +184,7 @@ body {
 .text-input-group input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   border: none;
   outline: none;
   padding: 8px 0;

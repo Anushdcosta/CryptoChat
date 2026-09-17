@@ -116,6 +116,35 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Get recent users (users we have a chat history with)
+app.get('/api/users/recent', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const myId = decoded.userId;
+
+    // Find all messages where I am sender or receiver
+    const messages = await Message.find({
+      $or: [{ senderId: myId }, { receiverId: myId }]
+    });
+
+    // Extract unique user IDs that are not me
+    const userIds = new Set();
+    messages.forEach(msg => {
+      if (msg.senderId.toString() !== myId) userIds.add(msg.senderId.toString());
+      if (msg.receiverId.toString() !== myId) userIds.add(msg.receiverId.toString());
+    });
+
+    const users = await User.find({ _id: { $in: Array.from(userIds) } }).select('-password');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get chat history between two users
 app.get('/api/messages/:userId', async (req, res) => {
   try {

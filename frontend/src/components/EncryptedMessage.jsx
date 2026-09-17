@@ -10,13 +10,14 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
   const showXRay = isHovered && isShiftDown;
 
   useEffect(() => {
-    if (showXRay && message.attachment && !message.viewed) {
+    // Only trigger View Once logic if the message was RECEIVED, not sent.
+    if (showXRay && message.attachment && !message.viewed && !isSent) {
       setWasViewed(true);
     } else if (!showXRay && wasViewed) {
       if (onMarkViewed) onMarkViewed(message._id);
       setWasViewed(false);
     }
-  }, [showXRay, message, wasViewed, onMarkViewed]);
+  }, [showXRay, message, wasViewed, onMarkViewed, isSent]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -93,7 +94,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
             <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
           ) : message.attachment ? (
             <div style={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isSent ? '#c1e5a5' : '#e2e8f0', borderRadius: '8px' }}>
-              <span style={{ fontWeight: 'bold' }}>📸 View Once Photo</span>
+              <span style={{ fontWeight: 'bold' }}>{isSent ? '📸 Photo Sent' : '📸 View Once Photo'}</span>
             </div>
           ) : (
             message.scrambledText
@@ -132,7 +133,11 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed }) {
             <>
               {message.attachment && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
-                  <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                  {isSent ? (
+                    <span style={{ fontWeight: 'bold' }}>📸 Photo Sent (View Once)</span>
+                  ) : (
+                    <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                  )}
                 </div>
               )}
               {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}

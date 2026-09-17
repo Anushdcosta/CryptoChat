@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import ChatBox from './components/ChatBox';
-import MessageInput from './components/MessageInput';
-import { User, Lock, ArrowRight } from 'lucide-react';
+import { User, Lock, ArrowRight, Search, X, Fingerprint, KeyRound } from 'lucide-react';
+import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
+import { Capacitor } from '@capacitor/core';
 
 const SOCKET_URL = 'https://cryptochat-s5bf.onrender.com';
 
@@ -20,6 +21,27 @@ export default function App() {
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Security State
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [pinMode, setPinMode] = useState('verify'); // 'create' or 'verify'
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  // Refs for socket callbacks
+  const activeChatRef = useRef(null);
+  const usersRef = useRef([]);
+
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Auth Forms
   const [authMode, setAuthMode] = useState('login');
@@ -50,6 +72,14 @@ export default function App() {
         setShowTutorial(true);
         localStorage.setItem('hasSeenTutorial', 'true');
       }
+      
+      // Request notification permissions after login
+      requestNotificationPermissions();
+      
+      // Determine if we need to set a PIN for the first time
+      if (!Capacitor.isNativePlatform() && !localStorage.getItem('appPin')) {
+        setPinMode('create');
+      }
     } catch (err) {
       setAuthError(err.message);
     }
@@ -58,8 +88,12 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // Keep appPin so the device remains locked to the user if they log in again? 
+    // Actually, maybe clear it so a new user can set their own PIN.
+    localStorage.removeItem('appPin');
     setToken(null);
     setUser(null);
+    setIsUnlocked(false);
     if (socket) socket.disconnect();
   };
 
@@ -67,13 +101,25 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     
-    fetch(`${SOCKET_URL}/api/users`, {
+    fetch(`${SOCKET_URL}/api/users/recent`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => setUsers(data))
       .catch(err => console.error(err));
   }, [token]);
+
+  // Fetch All Users for Search
+  useEffect(() => {
+    if (!token || !isSearching) return;
+    
+    fetch(`${SOCKET_URL}/api/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setAllUsers(data))
+      .catch(err => console.error(err));
+  }, [token, isSearching]);
 
   // Socket Connection
   useEffect(() => {
@@ -89,6 +135,19 @@ export default function App() {
     
     newSocket.on('receive_direct_message', (msg) => {
       setMessages((prev) => [...prev, msg]);
+      
+      if (msg.senderId !== user?.id) {
+        // If the app is in background, or we are not looking at the chat
+        const isBackground = document.hidden;
+        const isNotActiveChat = !activeChatRef.current || activeChatRef.current._id !== msg.senderId;
+
+        if (isBackground || isNotActiveChat) {
+          // Try to find sender's name
+          const sender = usersRef.current.find(u => u._id === msg.senderId);
+          const senderName = sender ? sender.username : 'Someone';
+          showNotification('CryptoChat', `New message from ${senderName}`);
+        }
+      }
     });
 
     newSocket.on('message_viewed', (messageId) => {
@@ -99,8 +158,8 @@ export default function App() {
       setUsers(prev => {
         const exists = prev.find(u => u._id === data.userId);
         if (!exists) {
-          // If we don't know this user, fetch the full list again
-          fetch(`${SOCKET_URL}/api/users`, {
+          // If we don't know this user, fetch the recent list again
+          fetch(`${SOCKET_URL}/api/users/recent`, {
             headers: { 'Authorization': `Bearer ${token}` }
           })
             .then(res => res.json())
@@ -194,25 +253,138 @@ export default function App() {
     );
   }
 
+  // --- RENDER SECURITY UNLOCK SCREEN ---
+  if (token && !isUnlocked) {
+    const isNative = Capacitor.isNativePlatform();
+
+    const handleBiometricUnlock = async () => {
+      try {
+        const result = await NativeBiometric.verifyIdentity({
+          reason: "Unlock CryptoChat",
+          title: "Verify Identity"
+        });
+        if (result) setIsUnlocked(true);
+      } catch (e) {
+        console.error('Biometric error:', e);
+      }
+    };
+
+    const handlePinSubmit = (e) => {
+      e.preventDefault();
+      setPinError('');
+      if (pinMode === 'create') {
+        if (pinInput.length < 4) {
+          setPinError('PIN must be at least 4 digits');
+          return;
+        }
+        localStorage.setItem('appPin', pinInput);
+        setIsUnlocked(true);
+      } else {
+        if (pinInput === localStorage.getItem('appPin')) {
+          setIsUnlocked(true);
+        } else {
+          setPinError('Incorrect PIN');
+          setPinInput('');
+        }
+      }
+    };
+
+    // Auto-prompt biometric on mount if native
+    useEffect(() => {
+      if (isNative) {
+        handleBiometricUnlock();
+      } else {
+        if (!localStorage.getItem('appPin')) setPinMode('create');
+      }
+    }, [isNative]);
+
+    return (
+      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '350px', textAlign: 'center' }}>
+          {isNative ? (
+            <>
+              <Fingerprint size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
+              <h2 style={{ color: 'var(--wa-teal-dark)' }}>App Locked</h2>
+              <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>Verify your identity to read messages.</p>
+              <button 
+                onClick={handleBiometricUnlock}
+                style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px 24px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Unlock with Biometrics
+              </button>
+            </>
+          ) : (
+            <>
+              <KeyRound size={64} color="var(--wa-teal-dark)" style={{ margin: '0 auto 20px' }} />
+              <h2 style={{ color: 'var(--wa-teal-dark)' }}>{pinMode === 'create' ? 'Create a PIN' : 'App Locked'}</h2>
+              <p style={{ color: 'var(--wa-text-secondary)', marginBottom: '30px' }}>
+                {pinMode === 'create' ? 'Set a 4-digit PIN to secure your X-Ray lens on this device.' : 'Enter your 4-digit PIN to unlock.'}
+              </p>
+              <form onSubmit={handlePinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {pinError && <div style={{ color: 'red', fontSize: '14px' }}>{pinError}</div>}
+                <input 
+                  type="password" 
+                  placeholder="Enter PIN" 
+                  value={pinInput}
+                  onChange={e => setPinInput(e.target.value.replace(/\D/g, '').slice(0,4))}
+                  style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '24px', textAlign: 'center', letterSpacing: '8px' }}
+                  required
+                />
+                <button type="submit" style={{ background: 'var(--wa-teal-light)', color: 'white', padding: '12px', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {pinMode === 'create' ? 'Save PIN & Unlock' : 'Unlock'}
+                </button>
+              </form>
+            </>
+          )}
+          <div style={{ marginTop: '30px' }}>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textDecoration: 'underline' }}>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // --- RENDER MAIN APP ---
+  const displayedUsers = isSearching 
+    ? allUsers.filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    : users;
+
   return (
     <div className="app-container">
       {/* Sidebar */}
       <div className={`sidebar ${activeChat ? 'mobile-hidden' : ''}`}>
-        <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="chat-avatar" style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0 }}>
-              <User size={20} />
+        <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="chat-avatar" style={{ width: 40, height: 40, background: '#cbd5e1', margin: 0 }}>
+                <User size={20} />
+              </div>
+              <span style={{ fontWeight: 'bold' }}>{user?.username}</span>
             </div>
-            <span style={{ fontWeight: 'bold' }}>{user?.username}</span>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button onClick={() => { setIsSearching(!isSearching); setSearchQuery(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-teal-dark)' }}>
+                {isSearching ? <X size={20} /> : <Search size={20} />}
+              </button>
+              <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--wa-teal-dark)', cursor: 'pointer', fontSize: '14px' }}>
+                Logout
+              </button>
+            </div>
           </div>
-          <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--wa-teal-dark)', cursor: 'pointer', fontSize: '14px' }}>
-            Logout
-          </button>
+          {isSearching && (
+            <input 
+              type="text" 
+              placeholder="Search all users..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }}
+            />
+          )}
         </div>
         
         <div className="sidebar-chats">
-          {users.map(u => (
+          {displayedUsers.map(u => (
             <div 
               key={u._id} 
               className="chat-item" 
@@ -235,9 +407,9 @@ export default function App() {
               </div>
             </div>
           ))}
-          {users.length === 0 && (
+          {displayedUsers.length === 0 && (
             <div style={{ padding: '20px', textAlign: 'center', color: 'var(--wa-text-secondary)' }}>
-              No other users registered yet.
+              {isSearching ? 'No users found.' : 'No recent chats. Click the search icon to find someone!'}
             </div>
           )}
         </div>

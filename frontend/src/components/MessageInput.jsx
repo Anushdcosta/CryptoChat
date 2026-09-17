@@ -64,7 +64,7 @@ export default function MessageInput({ onSendMessage }) {
   };
 
   return (
-    <div className="input-area" style={{ position: 'relative' }}>
+    <div className="input-area" style={{ position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {showEmojiPicker && (
         <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
           <EmojiPicker onEmojiClick={onEmojiClick} />
