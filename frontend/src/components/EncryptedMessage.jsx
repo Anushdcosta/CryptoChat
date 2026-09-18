@@ -227,9 +227,10 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
             left: 0,
             width: '100%',
             height: '100%',
-            padding: '8px 12px',
-            backgroundColor: isSent ? '#DCF8C6' : '#FFFFFF', 
-            color: '#000000',
+            padding: '6px 7px 8px 9px',
+            backgroundColor: isSent ? 'var(--wa-bubble-sent)' : 'var(--wa-bubble-received)', 
+            color: 'var(--wa-text-primary)',
+            borderRadius: 'inherit',
             fontFamily: 'inherit',
             clipPath: showXRay 
               ? `circle(9999px at ${mousePos.x}px ${mousePos.y}px)` 

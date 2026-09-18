@@ -85,9 +85,17 @@ export default function App() {
     };
     window.addEventListener('beforeunload', handleUnload);
     
+    // Heartbeat for online status
+    const heartbeatInterval = setInterval(() => {
+      if (auth.currentUser) {
+        updateDoc(doc(db, 'users', auth.currentUser.uid), { lastSeen: Date.now(), isOnline: true }).catch(() => {});
+      }
+    }, 60000);
+
     return () => {
       unsubscribe();
       window.removeEventListener('beforeunload', handleUnload);
+      clearInterval(heartbeatInterval);
     };
   }, []);
 
@@ -154,6 +162,56 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [activeChat, user]);
+
+  // 5. Global Notification Listeners
+  const activeChatRef = useRef(activeChat);
+  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
+
+  useEffect(() => {
+    if (!user) return;
+    const appStartTime = Date.now();
+    
+    // Direct messages
+    const qDm = query(collection(db, 'messages'), where('receiverId', '==', user._id));
+    const unsubDm = onSnapshot(qDm, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const msg = change.doc.data();
+          if (msg.createdAt > appStartTime && msg.senderId !== user._id) {
+            if (!activeChatRef.current || activeChatRef.current._id !== msg.senderId) {
+              showNotification(`New message from ${msg.senderName}`, "Tap to open CryptoChat");
+            }
+          }
+        }
+      });
+    });
+
+    return () => unsubDm();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || remoteRooms.length === 0) return;
+    const appStartTime = Date.now();
+    
+    // Group messages
+    const unsubGroups = remoteRooms.map(room => {
+      const qGroup = query(collection(db, 'messages'), where('roomId', '==', room._id));
+      return onSnapshot(qGroup, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const msg = change.doc.data();
+            if (msg.createdAt > appStartTime && msg.senderId !== user._id) {
+              if (!activeChatRef.current || activeChatRef.current._id !== msg.roomId) {
+                showNotification(`New message in ${room.username}`, `From ${msg.senderName}`);
+              }
+            }
+          }
+        });
+      });
+    });
+
+    return () => unsubGroups.forEach(u => u());
+  }, [user, remoteRooms]);
 
   useEffect(() => {
     CapacitorApp.addListener('backButton', ({ canGoBack }) => {
@@ -277,6 +335,13 @@ export default function App() {
     return <Login />;
   }
 
+  const checkIsOnline = (u) => {
+    if (u.isGroup) return true;
+    if (!u.isOnline) return false;
+    if (u.lastSeen && (Date.now() - u.lastSeen > 120000)) return false;
+    return true;
+  };
+
   const allChats = [...remoteRooms, ...remoteUsers];
   const displayedUsers = isSearching 
     ? allChats.filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -343,8 +408,8 @@ export default function App() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: '500', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.username}</span>
-                  <span style={{ fontSize: '12px', color: u.isOnline ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginLeft: '10px', flexShrink: 0 }}>
-                    {u.isOnline ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')}
+                  <span style={{ fontSize: '12px', color: checkIsOnline(u) ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)', marginLeft: '10px', flexShrink: 0 }}>
+                    {checkIsOnline(u) ? 'online' : (u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -413,7 +478,7 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{activeChat.username}</span>
                     <span className="status-indicator" style={{ color: 'var(--wa-text-secondary)', fontSize: '13px' }}>
-                      {activeChat.isGroup ? activeChat.status : (activeChat.isOnline ? 'online' : `last seen ${activeChat.lastSeen ? new Date(activeChat.lastSeen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'offline'}`)}
+                      {activeChat.isGroup ? activeChat.status : (checkIsOnline(activeChat) ? 'online' : `last seen ${activeChat.lastSeen ? new Date(activeChat.lastSeen).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'offline'}`)}
                     </span>
                   </div>
                 </div>
