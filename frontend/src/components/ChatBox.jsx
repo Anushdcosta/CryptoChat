@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import EncryptedMessage from './EncryptedMessage';
+import ContextMenu from './ContextMenu';
 
 export default function ChatBox({ messages, currentUserId, onMarkViewed, onDeleteMessage, onReply, onReact, isGroupChat }) {
   const bottomRef = useRef(null);
+  const [contextMenu, setContextMenu] = useState(null);
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -10,8 +12,30 @@ export default function ChatBox({ messages, currentUserId, onMarkViewed, onDelet
     }
   }, [messages]);
 
+  useEffect(() => {
+    const handleGlobalClick = () => setContextMenu(null);
+    const handleGlobalScroll = () => setContextMenu(null);
+    if (contextMenu) {
+      window.addEventListener('click', handleGlobalClick);
+      window.addEventListener('scroll', handleGlobalScroll, true);
+    }
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('scroll', handleGlobalScroll, true);
+    };
+  }, [contextMenu]);
+
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      message: msg
+    });
+  };
+
   return (
-    <div className="messages-container">
+    <div className="messages-container" style={{ position: 'relative' }}>
       {messages.length === 0 ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
           Say hi to start the conversation!
@@ -37,12 +61,24 @@ export default function ChatBox({ messages, currentUserId, onMarkViewed, onDelet
                 isGroupChat={isGroupChat}
                 repliedMessage={repliedMsg}
                 hasTail={!isSameSenderAsPrev}
+                onContextMenu={(e) => handleContextMenu(e, msg)}
               />
             </div>
           );
         })
       )}
       <div ref={bottomRef} />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          message={contextMenu.message}
+          onClose={() => setContextMenu(null)}
+          onReply={() => { onReply(contextMenu.message); setContextMenu(null); }}
+          onDelete={() => { onDeleteMessage(contextMenu.message._id); setContextMenu(null); }}
+          onReact={(emoji) => { onReact(contextMenu.message._id, emoji); setContextMenu(null); }}
+        />
+      )}
     </div>
   );
 }

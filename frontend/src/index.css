@@ -237,17 +237,14 @@ body, html {
 /* Bubbles */
 .message-wrapper {
   display: flex;
-  flex-direction: column;
-  max-width: 65%;
   position: relative;
+  width: 100%;
 }
 
 .message-wrapper.sent {
-  align-self: flex-end;
 }
 
 .message-wrapper.received {
-  align-self: flex-start;
 }
 
 .message-bubble {
@@ -261,6 +258,7 @@ body, html {
   word-break: break-word;
   user-select: none;
   min-width: 80px;
+  max-width: 65%;
 }
 
 .message-wrapper.sent.has-tail .message-bubble {

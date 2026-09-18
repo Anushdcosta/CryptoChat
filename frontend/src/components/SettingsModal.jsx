@@ -11,6 +11,21 @@ export default function SettingsModal({ user, theme, setTheme, onClose, onSave, 
     onClose();
   };
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) {
+        alert("Image is too large! Please select an image under 1MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatar(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -35,16 +50,30 @@ export default function SettingsModal({ user, theme, setTheme, onClose, onSave, 
           
           {/* Profile Section */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-            <div style={{
-              width: '100px', height: '100px', borderRadius: '50%', background: '#ccc',
-              overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
+            <div 
+              style={{
+                width: '100px', height: '100px', borderRadius: '50%', background: '#ccc',
+                overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative'
+              }}
+              onClick={() => document.getElementById('avatar-upload').click()}
+            >
               {avatar ? (
                 <img src={avatar} alt="Avatar" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Camera size={40} color="#fff" />
               )}
+              <div style={{ position: 'absolute', bottom: 0, width: '100%', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '4px 0' }}>
+                CHANGE
+              </div>
             </div>
+            <input 
+              id="avatar-upload" 
+              type="file" 
+              accept="image/*" 
+              style={{ display: 'none' }} 
+              onChange={handleImageUpload} 
+            />
             
             <div style={{ width: '100%' }}>
               <label style={{ fontSize: '12px', color: 'var(--wa-teal-light)', fontWeight: 'bold' }}>Your Name</label>
@@ -60,21 +89,7 @@ export default function SettingsModal({ user, theme, setTheme, onClose, onSave, 
               />
             </div>
 
-            <div style={{ width: '100%' }}>
-              <label style={{ fontSize: '12px', color: 'var(--wa-teal-light)', fontWeight: 'bold' }}>Avatar URL</label>
-              <input 
-                type="text" 
-                value={avatar} 
-                onChange={e => setAvatar(e.target.value)}
-                placeholder="https://..."
-                style={{
-                  width: '100%', border: 'none', borderBottom: '2px solid var(--wa-teal-light)',
-                  padding: '8px 0', fontSize: '16px', outline: 'none', background: 'transparent',
-                  color: 'var(--wa-text-primary)'
-                }}
-              />
-            </div>
-            
+
             <div style={{ width: '100%' }}>
               <label style={{ fontSize: '12px', color: 'var(--wa-teal-light)', fontWeight: 'bold' }}>Status</label>
               <input 

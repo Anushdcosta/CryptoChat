@@ -3,6 +3,7 @@ import { User, Lock, ArrowRight, Search, X, Users, Plus, MessageSquarePlus, More
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
+import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
@@ -33,6 +34,29 @@ export default function App() {
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  // AdMob Initialization
+  useEffect(() => {
+    const initAdMob = async () => {
+      if (Capacitor.isNativePlatform()) {
+        await AdMob.initialize({ requestTrackingAuthorization: true });
+        
+        await AdMob.showBanner({
+          adId: 'ca-app-pub-9481773492516595/9400171776',
+          adSize: BannerAdSize.BANNER,
+          position: BannerAdPosition.TOP_CENTER,
+          margin: 0,
+        });
+      }
+    };
+    initAdMob();
+    
+    return () => {
+      if (Capacitor.isNativePlatform()) {
+        AdMob.hideBanner().catch(() => {});
+      }
+    };
+  }, []);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -348,7 +372,7 @@ export default function App() {
     : allChats;
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ paddingTop: Capacitor.isNativePlatform() ? '50px' : '0' }}>
       {/* Sidebar */}
       <div className={`sidebar ${activeChat ? 'mobile-hidden' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '12px', alignItems: 'stretch', padding: '16px' }}>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Reply, Smile } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
-export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete, onReply, onReact, isGroupChat, repliedMessage, hasTail }) {
+export default function EncryptedMessage({ message, isSent, onMarkViewed, onDelete, onReply, onReact, isGroupChat, repliedMessage, hasTail, onContextMenu }) {
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [isWrapperHovered, setIsWrapperHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -171,6 +171,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onTouchMove={onTouchMove}
+        onContextMenu={onContextMenu}
         style={{ 
           minWidth: (message.attachment || message.viewed) ? '120px' : '80px',
           marginBottom: (message.reactions && message.reactions.length > 0) ? '12px' : '0'
