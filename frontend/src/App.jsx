@@ -49,9 +49,19 @@ export default function App() {
   const handleSidebarAction = async (chat, action) => {
     if (chat.isGroup) return; // For now, only DMs
     const threadId = [user._id, chat._id].sort().join('_');
+    
+    const statesUpdate = { [user._id]: action };
+    if (action === 'declined') {
+      statesUpdate[chat._id] = 'declined';
+    }
+    
     await setDoc(doc(db, 'threads', threadId), {
-      states: { [user._id]: action }
+      states: statesUpdate
     }, { merge: true });
+    
+    if (action === 'declined' && activeChat?._id === chat._id) {
+      setActiveChat(null);
+    }
   };
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
