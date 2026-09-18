@@ -34,6 +34,7 @@ export default function App() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null); // { x, y, chat }
+  const [activeTab, setActiveTab] = useState('Primary'); // 'Primary', 'General', 'Requests', 'Archived'
 
   useEffect(() => {
     const handleGlobalClick = () => setSidebarContextMenu(null);
@@ -431,7 +432,6 @@ export default function App() {
   };
 
   const allChats = [...remoteRooms, ...remoteUsers];
-  const [activeTab, setActiveTab] = useState('Primary'); // 'Primary', 'General', 'Requests', 'Archived'
 
   const displayedUsers = isSearching 
     ? [...remoteRooms, ...remoteUsers].filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
