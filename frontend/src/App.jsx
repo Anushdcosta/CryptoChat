@@ -192,17 +192,30 @@ export default function App() {
   const activeChatRef = useRef(activeChat);
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
 
+  const remoteRoomsRef = useRef(remoteRooms);
+  useEffect(() => { remoteRoomsRef.current = remoteRooms; }, [remoteRooms]);
+
   useEffect(() => {
     if (!user) return;
     const appStartTime = Date.now();
     
-    // Direct messages
-    const qDm = query(collection(db, 'messages'), where('receiverId', '==', user._id));
-    const unsubDm = onSnapshot(qDm, (snapshot) => {
+    // Listen to ALL new messages globally (0 documents on mount)
+    const qGlobal = query(collection(db, 'messages'), where('createdAt', '>', appStartTime));
+    
+    const unsubGlobal = onSnapshot(qGlobal, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const msg = change.doc.data();
-          if (msg.createdAt > appStartTime && msg.senderId !== user._id) {
+          if (msg.senderId === user._id) return; // Ignore own messages
+          
+          if (msg.roomId) {
+            // Group message notification
+            const room = remoteRoomsRef.current.find(r => r._id === msg.roomId);
+            if (room && (!activeChatRef.current || activeChatRef.current._id !== msg.roomId)) {
+              showNotification(`New message in ${room.username}`, `From ${msg.senderName}`);
+            }
+          } else if (msg.receiverId === user._id) {
+            // Direct message notification
             if (!activeChatRef.current || activeChatRef.current._id !== msg.senderId) {
               showNotification(`New message from ${msg.senderName}`, "Tap to open CryptoChat");
             }
@@ -211,32 +224,8 @@ export default function App() {
       });
     });
 
-    return () => unsubDm();
+    return () => unsubGlobal();
   }, [user]);
-
-  useEffect(() => {
-    if (!user || remoteRooms.length === 0) return;
-    const appStartTime = Date.now();
-    
-    // Group messages
-    const unsubGroups = remoteRooms.map(room => {
-      const qGroup = query(collection(db, 'messages'), where('roomId', '==', room._id));
-      return onSnapshot(qGroup, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const msg = change.doc.data();
-            if (msg.createdAt > appStartTime && msg.senderId !== user._id) {
-              if (!activeChatRef.current || activeChatRef.current._id !== msg.roomId) {
-                showNotification(`New message in ${room.username}`, `From ${msg.senderName}`);
-              }
-            }
-          }
-        });
-      });
-    });
-
-    return () => unsubGroups.forEach(u => u());
-  }, [user, remoteRooms]);
 
   useEffect(() => {
     CapacitorApp.addListener('backButton', ({ canGoBack }) => {
