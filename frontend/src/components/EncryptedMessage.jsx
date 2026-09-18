@@ -148,16 +148,16 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
       className={`message-wrapper ${isSent ? 'sent' : 'received'} ${hasTail ? 'has-tail' : ''}`}
       onMouseEnter={() => setIsWrapperHovered(true)}
       onMouseLeave={() => setIsWrapperHovered(false)}
-      style={{ display: 'flex', alignItems: 'center', justifyContent: isSent ? 'flex-end' : 'flex-start', position: 'relative' }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: isSent ? 'flex-end' : 'flex-start' }}
     >
       {isSent && (isWrapperHovered || showEmojiPicker) && (
-        <div style={{ position: 'absolute', right: '100%', marginRight: '8px', zIndex: 20 }}>
+        <div style={{ marginRight: '8px', zIndex: 20 }}>
           <ActionButtons />
         </div>
       )}
       
       {!isSent && (isWrapperHovered || showEmojiPicker) && (
-        <div style={{ position: 'absolute', left: '100%', marginLeft: '8px', zIndex: 20 }}>
+        <div style={{ marginLeft: '8px', zIndex: 20, order: 2 }}>
           <ActionButtons />
         </div>
       )}
