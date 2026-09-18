@@ -46,6 +46,7 @@ export default function App() {
           adSize: BannerAdSize.BANNER,
           position: BannerAdPosition.TOP_CENTER,
           margin: 0,
+          isTesting: true,
         });
       }
     };
