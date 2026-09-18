@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, ArrowRight, Search, X, Users, Plus, MessageSquarePlus, MoreVertical } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
+import SidebarContextMenu from './components/SidebarContextMenu';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
@@ -32,6 +33,25 @@ export default function App() {
   
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [sidebarContextMenu, setSidebarContextMenu] = useState(null); // { x, y, chat }
+
+  useEffect(() => {
+    const handleGlobalClick = () => setSidebarContextMenu(null);
+    if (sidebarContextMenu) {
+      window.addEventListener('click', handleGlobalClick);
+    }
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+    };
+  }, [sidebarContextMenu]);
+
+  const handleSidebarAction = async (chat, action) => {
+    if (chat.isGroup) return; // For now, only DMs
+    const threadId = [user._id, chat._id].sort().join('_');
+    await setDoc(doc(db, 'threads', threadId), {
+      states: { [user._id]: action }
+    }, { merge: true });
+  };
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -247,6 +267,21 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
+  // 7. Fetch Threads for Chat States (Primary, General, Request, Archived)
+  const [threads, setThreads] = useState({});
+  useEffect(() => {
+    if (!user) return;
+    const qThreads = query(collection(db, 'threads'), where('members', 'array-contains', user._id));
+    const unsub = onSnapshot(qThreads, (snapshot) => {
+      const thData = {};
+      snapshot.forEach(d => {
+        thData[d.id] = d.data();
+      });
+      setThreads(thData);
+    });
+    return () => unsub();
+  }, [user]);
+
   useEffect(() => {
     CapacitorApp.addListener('backButton', ({ canGoBack }) => {
       if (activeChat) {
@@ -305,8 +340,27 @@ export default function App() {
     if (activeChat.isGroup) {
       msgData.roomId = activeChat._id;
     } else {
+      const threadId = [user._id, activeChat._id].sort().join('_');
       msgData.receiverId = activeChat._id;
-      msgData.threadId = [user._id, activeChat._id].sort().join('_');
+      msgData.threadId = threadId;
+      
+      if (!threads[threadId]) {
+        await setDoc(doc(db, 'threads', threadId), {
+          members: [user._id, activeChat._id],
+          states: {
+            [user._id]: 'primary',
+            [activeChat._id]: 'request'
+          },
+          createdAt: Date.now()
+        });
+      } else {
+        // If thread exists but current user has no state, implicitly accept to primary
+        if (!threads[threadId].states[user._id] || threads[threadId].states[user._id] === 'request') {
+          await setDoc(doc(db, 'threads', threadId), {
+            states: { [user._id]: 'primary' }
+          }, { merge: true });
+        }
+      }
     }
 
     await addDoc(collection(db, 'messages'), msgData);
@@ -377,9 +431,26 @@ export default function App() {
   };
 
   const allChats = [...remoteRooms, ...remoteUsers];
+  const [activeTab, setActiveTab] = useState('Primary'); // 'Primary', 'General', 'Requests', 'Archived'
+
   const displayedUsers = isSearching 
-    ? allChats.filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-    : allChats;
+    ? [...remoteRooms, ...remoteUsers].filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    : [...remoteRooms, ...remoteUsers].filter(u => {
+        if (u.isGroup) {
+          return activeTab === 'Primary';
+        } else {
+          const threadId = [user._id, u._id].sort().join('_');
+          const thread = threads[threadId];
+          if (!thread) return false;
+          
+          const state = thread.states[user._id] || 'request';
+          if (activeTab === 'Primary') return state === 'primary';
+          if (activeTab === 'General') return state === 'general';
+          if (activeTab === 'Requests') return state === 'request';
+          if (activeTab === 'Archived') return state === 'archived';
+          return false;
+        }
+      });
 
   return (
     <div className="app-container" style={{ paddingTop: Capacitor.isNativePlatform() ? '50px' : '0' }}>
@@ -426,16 +497,59 @@ export default function App() {
               }}
             />
           </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+            {['Primary', 'General', 'Requests'].map(tab => (
+              <div 
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: '4px 12px',
+                  cursor: 'pointer',
+                  fontWeight: activeTab === tab ? '600' : 'normal',
+                  color: activeTab === tab ? 'var(--wa-teal-light)' : 'var(--wa-text-secondary)',
+                  borderBottom: activeTab === tab ? '2px solid var(--wa-teal-light)' : '2px solid transparent',
+                  fontSize: '14px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {tab}
+              </div>
+            ))}
+          </div>
         </div>
         
         <div className="sidebar-chats">
-          {displayedUsers.map(u => (
+          {activeTab === 'Primary' && Object.values(threads).some(t => t.states[user._id] === 'archived') && !isSearching && (
             <div 
-              key={u._id} 
               className="chat-item" 
-              style={{ background: activeChat?._id === u._id ? 'var(--wa-chat-hover)' : 'transparent' }}
-              onClick={() => setActiveChat(u)}
+              onClick={() => setActiveTab('Archived')}
+              style={{ borderBottom: '1px solid var(--wa-border)' }}
             >
+              <div className="chat-avatar" style={{ background: 'var(--wa-icon-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: 0, marginRight: 16 }}>
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+              </div>
+              <div style={{ flex: 1, fontWeight: '600' }}>Archived Chats</div>
+            </div>
+          )}
+          {displayedUsers.map(u => {
+            let threadState = 'primary';
+            if (!u.isGroup) {
+              const threadId = [user._id, u._id].sort().join('_');
+              threadState = threads[threadId]?.states[user._id] || 'request';
+            }
+            return (
+              <div 
+                key={u._id} 
+                className="chat-item" 
+                style={{ background: activeChat?._id === u._id ? 'var(--wa-chat-hover)' : 'transparent' }}
+                onClick={() => setActiveChat(u)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (!u.isGroup) {
+                    setSidebarContextMenu({ x: e.clientX, y: e.clientY, chat: u, state: threadState });
+                  }
+                }}
+              >
               <div className="chat-avatar" style={{ margin: 0, marginRight: 16, overflow: 'hidden' }}>
                 {u.isGroup ? <Users size={20} color="#fff" /> : (u.avatar ? <img src={u.avatar} alt="" referrerPolicy="no-referrer" style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : u.username.charAt(0).toUpperCase())}
               </div>
@@ -458,9 +572,21 @@ export default function App() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+      
+      {sidebarContextMenu && (
+        <SidebarContextMenu 
+          x={sidebarContextMenu.x} 
+          y={sidebarContextMenu.y} 
+          chat={sidebarContextMenu.chat} 
+          currentState={sidebarContextMenu.state}
+          onClose={() => setSidebarContextMenu(null)}
+          onAction={handleSidebarAction}
+        />
+      )}
 
       {showGroupModal && (
         <GroupModal 
@@ -534,13 +660,30 @@ export default function App() {
               isGroupChat={activeChat.isGroup}
             />
             
-            <MessageInput 
-              onSendMessage={handleSendMessage} 
-              onTyping={() => {}}
-              onStopTyping={() => {}}
-              replyingToMessage={replyingToMessage}
-              onCancelReply={() => setReplyingToMessage(null)}
-            />
+            {(!activeChat.isGroup && threads[[user._id, activeChat._id].sort().join('_')]?.states[user._id] === 'request') ? (
+              <div style={{ padding: '16px', background: 'var(--wa-sidebar-bg)', display: 'flex', justifyContent: 'center', gap: '16px', borderTop: '1px solid var(--wa-border)' }}>
+                 <button 
+                   onClick={() => handleSidebarAction(activeChat, 'primary')}
+                   style={{ padding: '10px 24px', background: 'var(--wa-teal-light)', color: '#fff', border: 'none', borderRadius: '24px', cursor: 'pointer', fontWeight: 'bold' }}
+                 >
+                   Accept
+                 </button>
+                 <button 
+                   onClick={() => handleSidebarAction(activeChat, 'declined')}
+                   style={{ padding: '10px 24px', background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '24px', cursor: 'pointer', fontWeight: 'bold' }}
+                 >
+                   Decline
+                 </button>
+              </div>
+            ) : (
+              <MessageInput 
+                onSendMessage={handleSendMessage} 
+                onTyping={() => {}}
+                onStopTyping={() => {}}
+                replyingToMessage={replyingToMessage}
+                onCancelReply={() => setReplyingToMessage(null)}
+              />
+            )}
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--wa-text-secondary)', background: '#f0f2f5' }}>
