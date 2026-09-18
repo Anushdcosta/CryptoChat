@@ -430,7 +430,10 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isDesktopAuth = urlParams.get('desktopAuth') === 'true';
+  
+  if (!user || isDesktopAuth) {
     return <Login />;
   }
 
