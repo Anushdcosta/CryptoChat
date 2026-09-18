@@ -455,7 +455,7 @@ export default function App() {
         }}>
           <div style={{
             background: 'white', padding: '40px', borderRadius: '12px', 
-            maxWidth: '500px', textAlign: 'center', margin: '20px'
+            maxWidth: '500px', textAlign: 'center', margin: '20px', color: '#111b21'
           }}>
             <h2 style={{ color: 'var(--wa-teal-dark)', marginBottom: '20px' }}>Welcome to CryptoChat!</h2>
             <p style={{ fontSize: '16px', lineHeight: '1.6', marginBottom: '20px' }}>
