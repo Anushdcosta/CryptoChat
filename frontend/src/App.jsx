@@ -24,6 +24,7 @@ export default function App() {
   const [remoteRooms, setRemoteRooms] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
   
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -225,6 +226,25 @@ export default function App() {
     });
 
     return () => unsubGlobal();
+  }, [user]);
+
+  // 6. Unread Message Counter for DMs
+  useEffect(() => {
+    if (!user) return;
+    const qUnread = query(
+      collection(db, 'messages'), 
+      where('receiverId', '==', user._id), 
+      where('read', '==', false)
+    );
+    const unsub = onSnapshot(qUnread, (snapshot) => {
+      const counts = {};
+      snapshot.forEach(d => {
+        const sender = d.data().senderId;
+        counts[sender] = (counts[sender] || 0) + 1;
+      });
+      setUnreadCounts(counts);
+    });
+    return () => unsub();
   }, [user]);
 
   useEffect(() => {
@@ -430,6 +450,11 @@ export default function App() {
                   <div style={{ fontSize: '13px', color: 'var(--wa-text-secondary)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {u.status}
                   </div>
+                  {unreadCounts[u._id] > 0 && (
+                    <div style={{ background: 'var(--wa-teal-light)', color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '10px', marginLeft: '8px' }}>
+                      {unreadCounts[u._id]}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
