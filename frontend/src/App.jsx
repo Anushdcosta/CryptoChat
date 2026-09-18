@@ -74,11 +74,11 @@ export default function App() {
         await AdMob.initialize({ requestTrackingAuthorization: true });
         
         await AdMob.showBanner({
-          adId: 'ca-app-pub-9481773492516595/9400171776',
+          adId: 'ca-app-pub-9481773492516595/9534446874',
           adSize: BannerAdSize.BANNER,
           position: BannerAdPosition.TOP_CENTER,
           margin: 0,
-          isTesting: true,
+          isTesting: false,
         });
       }
     };

@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "451500121141-tgoms1adpl34f7jme72cu33q5pe2varg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anushdcosta.cryptochat",
+            "certificate_hash": "dcd16ef714da6e82f2add1fae4a957190973758a"
+          }
+        },
+        {
           "client_id": "451500121141-olb6o5o2rgolg00h3a2vm4sejghe5if8.apps.googleusercontent.com",
           "client_type": 3
         }
