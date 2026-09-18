@@ -2,7 +2,7 @@
   "name": "cryptochat",
   "private": true,
   "main": "electron-main.cjs",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "author": "Anush Dcosta",
   "description": "A secure, encrypted chat application",
   "type": "module",
@@ -20,6 +20,11 @@
     "directories": {
       "output": "build-electron"
     },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "package.json"
+    ],
     "win": {
       "target": "nsis"
     }

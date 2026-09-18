@@ -20,6 +20,36 @@ export default function Login() {
         size: 'invisible'
       });
     }
+
+    // Handle deep link token from Electron
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      
+      const handleDeepLink = async (event, url) => {
+        try {
+          const urlObj = new URL(url);
+          const token = urlObj.searchParams.get('token');
+          if (token) {
+            const credential = GoogleAuthProvider.credential(token);
+            await signInWithCredential(auth, credential);
+          }
+        } catch (err) {
+          setError(err.message || 'Failed to login from deep link');
+        }
+      };
+
+      ipcRenderer.on('deep-link-url', handleDeepLink);
+      return () => {
+        ipcRenderer.removeListener('deep-link-url', handleDeepLink);
+      };
+    } else {
+      // Handle Web App redirect logic for Desktop OAuth
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDesktopAuth = urlParams.get('desktopAuth');
+      if (isDesktopAuth) {
+        setAuthMode('desktop-redirect');
+      }
+    }
   }, []);
 
   const handleEmailAuth = async (e) => {
@@ -43,8 +73,21 @@ export default function Login() {
         const result = await FirebaseAuthentication.signInWithGoogle();
         const credential = GoogleAuthProvider.credential(result.credential?.idToken);
         await signInWithCredential(auth, credential);
+      } else if (window.require) {
+        // We are in Electron! Open the secure system browser to do the login.
+        const { shell } = window.require('electron');
+        shell.openExternal('https://cryptochat-silk.vercel.app/?desktopAuth=true');
       } else {
-        await signInWithPopup(auth, googleProvider);
+        // We are on the regular web app, use the normal popup
+        const result = await signInWithPopup(auth, googleProvider);
+        
+        // If this was a deep link redirect for the desktop app, send the token back!
+        if (authMode === 'desktop-redirect') {
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          if (credential && credential.idToken) {
+            window.location.href = `cryptochat://auth?token=${credential.idToken}`;
+          }
+        }
       }
     } catch (err) {
       setError(err.message || 'Google Sign-In failed');
@@ -71,6 +114,28 @@ export default function Login() {
       setError(err.message);
     }
   };
+
+  if (authMode === 'desktop-redirect') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-2xl shadow-xl text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center">
+            <Lock className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="mt-6 text-3xl font-extrabold text-white">Login to CryptoChat Desktop</h2>
+          <p className="mt-2 text-sm text-gray-400">
+            Click the button below to securely log in with Google and return to the desktop app.
+          </p>
+          <button
+            onClick={handleGoogleAuth}
+            className="w-full mt-8 group relative flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Continue with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
