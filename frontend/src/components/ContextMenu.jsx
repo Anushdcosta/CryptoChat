@@ -17,7 +17,7 @@ export default function ContextMenu({ x, y, message, onClose, onReply, onDelete,
     position: 'fixed',
     top: adjustedY,
     left: adjustedX,
-    backgroundColor: 'var(--wa-bg-panel)',
+    backgroundColor: 'var(--wa-sidebar-bg)',
     border: '1px solid var(--wa-border)',
     borderRadius: '8px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -63,7 +63,7 @@ function ContextMenuItem({ icon, label, onClick, color }) {
         color: color || 'var(--wa-text-primary)',
         transition: 'background-color 0.2s'
       }}
-      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--wa-hover)'}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--wa-chat-hover)'}
       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
     >
       {icon}

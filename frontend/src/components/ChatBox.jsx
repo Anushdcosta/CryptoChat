@@ -14,14 +14,11 @@ export default function ChatBox({ messages, currentUserId, onMarkViewed, onDelet
 
   useEffect(() => {
     const handleGlobalClick = () => setContextMenu(null);
-    const handleGlobalScroll = () => setContextMenu(null);
     if (contextMenu) {
       window.addEventListener('click', handleGlobalClick);
-      window.addEventListener('scroll', handleGlobalScroll, true);
     }
     return () => {
       window.removeEventListener('click', handleGlobalClick);
-      window.removeEventListener('scroll', handleGlobalScroll, true);
     };
   }, [contextMenu]);
 
