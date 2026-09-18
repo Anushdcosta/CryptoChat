@@ -61,7 +61,7 @@ body, html {
 
 .app-container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 100%;
   height: 100dvh;
   display: flex;
   background: var(--wa-sidebar-bg);
