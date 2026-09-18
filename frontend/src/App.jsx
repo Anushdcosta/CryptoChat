@@ -286,7 +286,7 @@ export default function App() {
     <div className="app-container">
       {/* Sidebar */}
       <div className={`sidebar ${activeChat ? 'mobile-hidden' : ''}`}>
-        <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+        <div className="sidebar-header" style={{ justifyContent: 'space-between', flexDirection: 'column', gap: '12px', alignItems: 'stretch', padding: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div 
               className="chat-avatar" 
@@ -402,7 +402,7 @@ export default function App() {
                 <button 
                   className="mobile-only-btn" 
                   onClick={() => setActiveChat(null)} 
-                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--wa-teal-dark)', display: 'none' }}
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--wa-icon-color)', display: 'none' }}
                 >
                   ←
                 </button>

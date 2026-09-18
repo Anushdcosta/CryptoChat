@@ -10,6 +10,23 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
   const [wasViewed, setWasViewed] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const containerRef = useRef(null);
+  const wrapperRef = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
   
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
@@ -127,6 +144,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
 
   return (
     <div 
+      ref={wrapperRef}
       className={`message-wrapper ${isSent ? 'sent' : 'received'} ${hasTail ? 'has-tail' : ''}`}
       onMouseEnter={() => setIsWrapperHovered(true)}
       onMouseLeave={() => setIsWrapperHovered(false)}

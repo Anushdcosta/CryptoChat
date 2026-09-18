@@ -45,7 +45,7 @@ body, html {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100dvh;
   margin: 0;
   width: 100vw;
   overflow: hidden;
@@ -53,7 +53,7 @@ body, html {
 
 #root {
   width: 100%;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -62,7 +62,7 @@ body, html {
 .app-container {
   width: 100%;
   max-width: 1200px;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   background: var(--wa-sidebar-bg);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
