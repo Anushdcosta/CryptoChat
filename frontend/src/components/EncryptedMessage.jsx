@@ -194,7 +194,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
           {repliedMessage && (
             <div style={{ padding: '6px', background: 'rgba(0,0,0,0.05)', borderLeft: '4px solid var(--wa-teal-light)', borderRadius: '4px', fontSize: '13px', color: '#555' }}>
               <span style={{ fontWeight: 'bold', color: 'var(--wa-teal-light)' }}>{repliedMessage.senderName || 'User'}</span><br />
-              {repliedMessage.plainText}
+              {repliedMessage.scrambledText}
             </div>
           )}
           
