@@ -30,6 +30,7 @@
     }
   },
   "dependencies": {
+    "@anuradev/capacitor-background-mode": "^8.1.0",
     "@capacitor-community/admob": "^6.2.0",
     "@capacitor-firebase/authentication": "^6.3.1",
     "@capacitor/android": "^6.2.2",

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Camera, Moon, Sun, Monitor, LogOut } from 'lucide-react';
 
-export default function SettingsModal({ user, theme, setTheme, onClose, onSave, onLogout }) {
+export default function SettingsModal({ user, theme, setTheme, notificationsEnabled, setNotificationsEnabled, onClose, onSave, onLogout }) {
   const [username, setUsername] = useState(user?.username || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [status, setStatus] = useState(user?.status || 'Hey there! I am using CryptoChat.');
@@ -103,6 +103,35 @@ export default function SettingsModal({ user, theme, setTheme, onClose, onSave, 
                 }}
               />
             </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />
+
+          {/* Notifications Section */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <label style={{ fontSize: '16px', color: 'var(--wa-text-primary)', fontWeight: 'bold' }}>Background Notifications</label>
+              <div style={{ fontSize: '12px', color: 'var(--wa-text-secondary)', marginTop: '4px' }}>Keep app running in background to get instant push notifications. (May use more battery)</div>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px', flexShrink: 0 }}>
+              <input 
+                type="checkbox" 
+                checked={notificationsEnabled} 
+                onChange={e => setNotificationsEnabled(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: notificationsEnabled ? 'var(--wa-teal-light)' : '#ccc',
+                transition: '.4s', borderRadius: '34px'
+              }}>
+                <span style={{
+                  position: 'absolute', content: '""', height: '16px', width: '16px',
+                  left: notificationsEnabled ? '22px' : '2px', bottom: '2px',
+                  backgroundColor: 'white', transition: '.4s', borderRadius: '50%'
+                }}></span>
+              </span>
+            </label>
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />

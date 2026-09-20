@@ -5,6 +5,7 @@ import SidebarContextMenu from './components/SidebarContextMenu';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
+import { BackgroundMode } from '@anuradev/capacitor-background-mode';
 import ChatBox from './components/ChatBox';
 import MessageInput from './components/MessageInput';
 import GroupModal from './components/GroupModal';
@@ -30,6 +31,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(localStorage.getItem('notificationsEnabled') === 'true');
   
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -258,6 +260,28 @@ export default function App() {
 
     return () => unsubGlobal();
   }, [user]);
+
+  // 6. Background Mode Logic
+  useEffect(() => {
+    const toggleBackgroundMode = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          if (notificationsEnabled) {
+            await BackgroundMode.enable();
+            await BackgroundMode.disableWebViewOptimizations();
+            await BackgroundMode.disableBatteryOptimizations();
+            console.log("Background Mode Enabled");
+          } else {
+            await BackgroundMode.disable();
+            console.log("Background Mode Disabled");
+          }
+        } catch (error) {
+          console.error("Error toggling background mode:", error);
+        }
+      }
+    };
+    toggleBackgroundMode();
+  }, [notificationsEnabled]);
 
   // 6. Unread Message Counter for DMs
   useEffect(() => {
@@ -615,6 +639,11 @@ export default function App() {
           user={user}
           theme={theme}
           setTheme={setTheme}
+          notificationsEnabled={notificationsEnabled}
+          setNotificationsEnabled={(val) => {
+            setNotificationsEnabled(val);
+            localStorage.setItem('notificationsEnabled', val.toString());
+          }}
           onClose={() => setShowSettingsModal(false)}
           onSave={handleUpdateProfile}
           onLogout={handleLogout}
