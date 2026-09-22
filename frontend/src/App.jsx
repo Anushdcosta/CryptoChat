@@ -69,25 +69,50 @@ export default function App() {
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
 
-  // AdMob Initialization
+  // AdMob Management
+  const adMobState = useRef({ initialized: false, isShowing: false });
+
   useEffect(() => {
-    const initAdMob = async () => {
-      if (Capacitor.isNativePlatform()) {
-        await AdMob.initialize({ requestTrackingAuthorization: true });
-        
-        await AdMob.showBanner({
-          adId: 'ca-app-pub-9481773492516595/9534446874',
-          adSize: BannerAdSize.BANNER,
-          position: BannerAdPosition.TOP_CENTER,
-          margin: 0,
-          isTesting: false,
-        });
+    if (!Capacitor.isNativePlatform()) return;
+
+    const manageAds = async () => {
+      try {
+        // If user is loaded and has noAds enabled
+        if (user && user.noAds) {
+          if (adMobState.current.isShowing) {
+            await AdMob.hideBanner();
+            adMobState.current.isShowing = false;
+          }
+        } else {
+          // Normal user or not logged in yet (show ads)
+          if (!adMobState.current.initialized) {
+            await AdMob.initialize({ requestTrackingAuthorization: true });
+            await AdMob.showBanner({
+              adId: 'ca-app-pub-9481773492516595/9534446874',
+              adSize: BannerAdSize.BANNER,
+              position: BannerAdPosition.TOP_CENTER,
+              margin: 0,
+              isTesting: false,
+            });
+            adMobState.current.initialized = true;
+            adMobState.current.isShowing = true;
+          } else if (!adMobState.current.isShowing) {
+            await AdMob.resumeBanner();
+            adMobState.current.isShowing = true;
+          }
+        }
+      } catch (e) {
+        console.error("AdMob Error:", e);
       }
     };
-    initAdMob();
-    
+
+    manageAds();
+  }, [user]);
+
+  // Clean up AdMob on app close
+  useEffect(() => {
     return () => {
-      if (Capacitor.isNativePlatform()) {
+      if (Capacitor.isNativePlatform() && adMobState.current.isShowing) {
         AdMob.hideBanner().catch(() => {});
       }
     };
@@ -229,27 +254,37 @@ export default function App() {
   const remoteRoomsRef = useRef(remoteRooms);
   useEffect(() => { remoteRoomsRef.current = remoteRooms; }, [remoteRooms]);
 
+  const processedMessageIds = useRef(new Set());
+  const isInitialLoad = useRef(true);
+
   useEffect(() => {
     if (!user) return;
-    const appStartTime = Date.now();
-    
-    // Listen to ALL new messages globally (0 documents on mount)
+    const appStartTime = Date.now() - (5 * 60 * 1000); // 5 mins buffer for clock skew
     const qGlobal = query(collection(db, 'messages'), where('createdAt', '>', appStartTime));
     
     const unsubGlobal = onSnapshot(qGlobal, (snapshot) => {
+      if (isInitialLoad.current) {
+        snapshot.docs.forEach(doc => processedMessageIds.current.add(doc.id));
+        isInitialLoad.current = false;
+        return;
+      }
+      
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const msg = change.doc.data();
+          const id = change.doc.id;
+          
+          if (processedMessageIds.current.has(id)) return;
+          processedMessageIds.current.add(id);
+          
           if (msg.senderId === user._id) return; // Ignore own messages
           
           if (msg.roomId) {
-            // Group message notification
             const room = remoteRoomsRef.current.find(r => r._id === msg.roomId);
             if (room && (!activeChatRef.current || activeChatRef.current._id !== msg.roomId)) {
               showNotification(`New message in ${room.username}`, `From ${msg.senderName}`);
             }
           } else if (msg.receiverId === user._id) {
-            // Direct message notification
             if (!activeChatRef.current || activeChatRef.current._id !== msg.senderId) {
               showNotification(`New message from ${msg.senderName}`, "Tap to open CryptoChat");
             }
@@ -267,9 +302,9 @@ export default function App() {
       if (Capacitor.isNativePlatform()) {
         try {
           if (notificationsEnabled) {
-            await BackgroundMode.enable();
+            await BackgroundMode.enable({ disableWebViewOptimization: true });
             await BackgroundMode.disableWebViewOptimizations();
-            await BackgroundMode.disableBatteryOptimizations();
+            await BackgroundMode.requestDisableBatteryOptimizations();
             console.log("Background Mode Enabled");
           } else {
             await BackgroundMode.disable();

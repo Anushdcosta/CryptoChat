@@ -29,8 +29,7 @@ export const showNotification = async (title, body) => {
           {
             title: title,
             body: body,
-            id: new Date().getTime(), // unique ID
-            schedule: { at: new Date(Date.now() + 100) }, // Schedule almost immediately
+            id: Math.floor(Math.random() * 2147483647), // valid 32-bit integer ID
             actionTypeId: '',
             extra: null
           }
