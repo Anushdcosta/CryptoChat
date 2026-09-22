@@ -4,6 +4,7 @@ import { requestNotificationPermissions, showNotification } from './utils/Notifi
 import SidebarContextMenu from './components/SidebarContextMenu';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import { BackgroundMode } from '@anuradev/capacitor-background-mode';
 import ChatBox from './components/ChatBox';
@@ -37,6 +38,14 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null); // { x, y, chat }
   const [activeTab, setActiveTab] = useState('Primary'); // 'Primary', 'General', 'Requests', 'Archived'
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+      StatusBar.setBackgroundColor({ color: '#161b22' }).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     const handleGlobalClick = () => setSidebarContextMenu(null);
@@ -74,11 +83,14 @@ export default function App() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    
+    // Don't manage ads until the user state is fully loaded from Firebase
+    if (user === null) return;
 
     const manageAds = async () => {
       try {
-        // If user is loaded and has noAds enabled
-        if (user && user.noAds) {
+        // If user has noAds enabled
+        if (user.noAds) {
           if (adMobState.current.isShowing) {
             await AdMob.hideBanner();
             adMobState.current.isShowing = false;
