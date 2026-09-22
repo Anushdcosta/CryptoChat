@@ -79,7 +79,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
 
   // AdMob Management
-  const adMobState = useRef({ initialized: false, isShowing: false });
+  const adMobState = useRef({ initialized: false, isShowing: false, interstitialShown: false });
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -99,16 +99,31 @@ export default function App() {
           // Normal user or not logged in yet (show ads)
           if (!adMobState.current.initialized) {
             await AdMob.initialize({ requestTrackingAuthorization: true });
+            adMobState.current.initialized = true;
+          }
+          
+          if (!adMobState.current.interstitialShown) {
+            try {
+              await AdMob.prepareInterstitial({
+                adId: 'ca-app-pub-9481773492516595/7082938111',
+                isTesting: false,
+              });
+              await AdMob.showInterstitial();
+            } catch (err) {
+              console.error("Interstitial Error:", err);
+            }
+            adMobState.current.interstitialShown = true;
+          }
+
+          if (!adMobState.current.isShowing) {
             await AdMob.showBanner({
               adId: 'ca-app-pub-9481773492516595/9534446874',
               adSize: BannerAdSize.BANNER,
-              position: BannerAdPosition.TOP_CENTER,
-              margin: 0,
+              position: BannerAdPosition.BOTTOM_CENTER,
               isTesting: false,
             });
-            adMobState.current.initialized = true;
             adMobState.current.isShowing = true;
-          } else if (!adMobState.current.isShowing) {
+          } else {
             await AdMob.resumeBanner();
             adMobState.current.isShowing = true;
           }
