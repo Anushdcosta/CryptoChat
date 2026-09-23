@@ -15,24 +15,41 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
     onClose();
   };
 
-  const processSelectedImage = (e, type, aspect) => {
+  const processSelectedImage = async (e, type, aspect) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         alert("Image is too large! Please select an image under 5MB.");
+        e.target.value = null;
         return;
       }
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        setCropData({ imageSrc: reader.result, aspect, type });
-      };
-      e.target.value = null; // reset input
+      
+      if (type === 'wallpaper') {
+        // Wallpapers shouldn't be cropped to a fixed aspect ratio since window shapes vary
+        setIsUploading(true);
+        try {
+          const url = await uploadToCloudinary(file);
+          if (url) setWallpaper(url);
+        } catch (err) {
+          console.error(err);
+          alert('Failed to upload wallpaper.');
+        } finally {
+          setIsUploading(false);
+          e.target.value = null;
+        }
+      } else {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          setCropData({ imageSrc: reader.result, aspect, type });
+        };
+        e.target.value = null; // reset input
+      }
     }
   };
 
   const handleImageUpload = (e) => processSelectedImage(e, 'avatar', 1);
-  const handleWallpaperUpload = (e) => processSelectedImage(e, 'wallpaper', 9 / 16);
+  const handleWallpaperUpload = (e) => processSelectedImage(e, 'wallpaper', null);
 
   const handleCropComplete = async (croppedBlob) => {
     const { type } = cropData;
