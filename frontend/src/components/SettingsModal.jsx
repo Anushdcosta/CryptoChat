@@ -67,9 +67,9 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
         />
       )}
       <div style={{
-        background: 'var(--wa-sidebar-bg)', width: '100%', maxWidth: '400px', borderRadius: '12px',
+        background: 'var(--wa-sidebar-bg)', width: '95%', maxWidth: '500px', borderRadius: '12px',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        color: 'var(--wa-text-primary)'
+        color: 'var(--wa-text-primary)', maxHeight: '90vh'
       }}>
         <div style={{
           padding: '20px', background: 'var(--wa-sidebar-header)',
@@ -81,7 +81,7 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
           </button>
         </div>
 
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', maxHeight: '75vh' }}>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
           
           {/* Profile Section */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
