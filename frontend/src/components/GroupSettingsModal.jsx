@@ -9,7 +9,7 @@ export default function GroupSettingsModal({ room, users, currentUserId, onClose
   const filteredNonMembers = nonMembers.filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255,255,255,0.9)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--wa-sidebar-bg)', color: 'var(--wa-text-primary)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '20px', background: 'var(--wa-teal-dark)', color: 'white', display: 'flex', alignItems: 'center', gap: '15px' }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer' }}>←</button>
         <h2 style={{ margin: 0, fontSize: '18px' }}>Group Info</h2>
@@ -24,7 +24,7 @@ export default function GroupSettingsModal({ room, users, currentUserId, onClose
           <p style={{ color: 'var(--wa-text-secondary)' }}>Group · {room.members ? room.members.length : 0} members</p>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: '8px', padding: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+        <div style={{ background: 'var(--wa-chat-hover)', borderRadius: '8px', padding: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '16px', color: 'var(--wa-teal-dark)', marginBottom: '15px' }}>{members.length} Members</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {members.map(m => (
@@ -45,14 +45,14 @@ export default function GroupSettingsModal({ room, users, currentUserId, onClose
           </div>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: '8px', padding: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div style={{ background: 'var(--wa-chat-hover)', borderRadius: '8px', padding: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h3 style={{ fontSize: '16px', color: 'var(--wa-teal-dark)', marginBottom: '15px' }}>Add Participants</h3>
           <input 
             type="text" 
             placeholder="Search friends..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '15px', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wa-border)', marginBottom: '15px', boxSizing: 'border-box', background: 'var(--wa-bg)', color: 'var(--wa-text-primary)' }}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {filteredNonMembers.map(m => (

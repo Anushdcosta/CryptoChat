@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, ArrowRight, Search, X, Users, Plus, MessageSquarePlus, MoreVertical } from 'lucide-react';
+import { User, Lock, ArrowRight, ArrowLeft, Search, X, Users, Plus, MessageSquarePlus, MoreVertical } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import SidebarContextMenu from './components/SidebarContextMenu';
 import { Capacitor } from '@capacitor/core';
@@ -32,6 +32,8 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
+  const [accentColor, setAccentColor] = useState(localStorage.getItem('accentColor') || 'teal');
+  const [wallpaper, setWallpaper] = useState(localStorage.getItem('wallpaper') || 'default');
   const [notificationsEnabled, setNotificationsEnabled] = useState(localStorage.getItem('notificationsEnabled') === 'true');
   
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -411,6 +413,13 @@ export default function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Accent and Wallpaper Listener
+  useEffect(() => {
+    document.documentElement.setAttribute('data-accent', accentColor);
+    localStorage.setItem('accentColor', accentColor);
+    localStorage.setItem('wallpaper', wallpaper);
+  }, [accentColor, wallpaper]);
+
   const handleLogout = async () => {
     if (user) {
       await updateDoc(doc(db, 'users', user._id), { isOnline: false, lastSeen: Date.now() });
@@ -493,8 +502,13 @@ export default function App() {
   };
 
   const handleUpdateProfile = async (data) => {
-    await updateDoc(doc(db, 'users', user._id), data);
-    setUser(prev => ({ ...prev, ...data }));
+    try {
+      await updateDoc(doc(db, 'users', user._id), data);
+      setUser(prev => ({ ...prev, ...data }));
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      alert('Failed to save profile: ' + err.message);
+    }
   };
 
   if (!authResolved) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
@@ -577,6 +591,7 @@ export default function App() {
               </button>
             </div>
           </div>
+          <div style={{ height: '2px', background: 'var(--wa-icon-color)', opacity: 0.15, width: '100%', borderRadius: '2px' }} />
           <div style={{ position: 'relative', width: '100%' }}>
             <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--wa-icon-color)' }}>
               <Search size={18} />
@@ -596,7 +611,8 @@ export default function App() {
               }}
             />
           </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+          <div style={{ height: '2px', background: 'var(--wa-icon-color)', opacity: 0.15, width: '100%', borderRadius: '2px' }} />
+          <div style={{ display: 'flex', gap: '8px' }}>
             {['Primary', 'General', 'Requests'].map(tab => (
               <div 
                 key={tab}
@@ -701,6 +717,10 @@ export default function App() {
           user={user}
           theme={theme}
           setTheme={setTheme}
+          accentColor={accentColor}
+          setAccentColor={setAccentColor}
+          wallpaper={wallpaper}
+          setWallpaper={setWallpaper}
           notificationsEnabled={notificationsEnabled}
           setNotificationsEnabled={(val) => {
             setNotificationsEnabled(val);
@@ -728,7 +748,10 @@ export default function App() {
       )}
 
       {/* Main Chat Panel */}
-      <div className={`chat-panel ${!activeChat ? 'mobile-hidden' : ''}`}>
+      <div 
+        className={`chat-panel ${wallpaper.startsWith('http') || wallpaper.startsWith('data:image') ? '' : 'wallpaper-' + wallpaper} ${!activeChat ? 'mobile-hidden' : ''}`}
+        style={wallpaper.startsWith('http') || wallpaper.startsWith('data:image') ? { backgroundImage: `url(${wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+      >
         {activeChat ? (
           <>
             <div className="panel-header">
@@ -736,9 +759,9 @@ export default function App() {
                 <button 
                   className="mobile-only-btn" 
                   onClick={() => setActiveChat(null)} 
-                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--wa-icon-color)', display: 'none' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-icon-color)', display: 'none', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                 >
-                  ←
+                  <ArrowLeft size={24} />
                 </button>
                 <div className="panel-title" style={{ cursor: activeChat.isGroup ? 'pointer' : 'default' }} onClick={() => activeChat.isGroup && setShowGroupSettingsModal(true)}>
                   <div className="chat-avatar" style={{ width: 40, height: 40, margin: 0, marginRight: 16, overflow: 'hidden' }}>

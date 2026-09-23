@@ -32,11 +32,68 @@
   --wa-icon-color: #aebac1;
 }
 
+/* Blue Accent */
+[data-accent="blue"] { --wa-teal-dark: #1e3a8a; --wa-teal-light: #2563eb; --wa-bubble-sent: #dbeafe; }
+[data-theme="dark"][data-accent="blue"] { --wa-teal-light: #3b82f6; --wa-bubble-sent: #1e3a8a; }
+
+/* Purple Accent */
+[data-accent="purple"] { --wa-teal-dark: #581c87; --wa-teal-light: #9333ea; --wa-bubble-sent: #f3e8ff; }
+[data-theme="dark"][data-accent="purple"] { --wa-teal-light: #a855f7; --wa-bubble-sent: #4c1d95; }
+
+/* Rose Accent */
+[data-accent="rose"] { --wa-teal-dark: #be123c; --wa-teal-light: #e11d48; --wa-bubble-sent: #ffe4e6; }
+[data-theme="dark"][data-accent="rose"] { --wa-teal-light: #f43f5e; --wa-bubble-sent: #881337; }
+
+/* Orange Accent */
+[data-accent="orange"] { --wa-teal-dark: #c2410c; --wa-teal-light: #ea580c; --wa-bubble-sent: #ffedd5; }
+[data-theme="dark"][data-accent="orange"] { --wa-teal-light: #f97316; --wa-bubble-sent: #7c2d12; }
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* Wallpapers */
+.wallpaper-default::before {
+  background-image: url('https://i.pinimg.com/originals/97/c0/07/97c00759d90d786d9b6096d274ad3e07.png');
+  background-repeat: repeat !important;
+  background-size: 400px !important;
+  mix-blend-mode: multiply;
+  opacity: 0.2 !important;
+}
+
+[data-theme="dark"] .wallpaper-default::before {
+  filter: invert(1);
+  mix-blend-mode: screen;
+  opacity: 0.15 !important;
+}
+
+.wallpaper-solid {
+  background: var(--wa-bg) !important;
+}
+.wallpaper-solid::before {
+  display: none !important;
+}
+
+.wallpaper-gradient-ocean {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
+}
+.wallpaper-gradient-ocean::before {
+  display: none !important;
+}
+
+.wallpaper-gradient-sunset {
+  background: linear-gradient(135deg, #f43f5e, #f97316) !important;
+}
+.wallpaper-gradient-sunset::before {
+  display: none !important;
+}
+
+.wallpaper-anime::before {
+  background-image: url('https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&q=80&w=1000');
+  opacity: 0.15 !important;
 }
 
 body, html {
@@ -139,10 +196,12 @@ body, html {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+  /* background-image will be set dynamically via style or classes */
   opacity: 0.06;
   z-index: 0;
   pointer-events: none;
+  background-size: cover;
+  background-position: center;
 }
 
 .panel-header {
@@ -354,5 +413,11 @@ body, html {
 
   .mobile-only-btn {
     display: block !important;
+  }
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
   }
 }

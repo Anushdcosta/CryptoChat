@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { scrambleText } from '../crypto';
-import { Send, Smile, Paperclip, X } from 'lucide-react';
+import { Send, Smile, Paperclip, X, Loader } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import { uploadToCloudinary } from '../utils/CloudinaryUtils';
 
 export default function MessageInput({ onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
   const [text, setText] = useState('');
   const [attachment, setAttachment] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -30,7 +32,7 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -39,11 +41,16 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setAttachment(event.target.result);
-    };
-    reader.readAsDataURL(file);
+    setIsUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      if (url) setAttachment(url);
+    } catch (err) {
+      alert("Failed to upload attachment");
+    } finally {
+      setIsUploading(false);
+    }
+    
     e.target.value = null; // reset
   };
 
@@ -91,7 +98,7 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
       <div className="input-area" style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
         {showEmojiPicker && (
           <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
-          <EmojiPicker onEmojiClick={onEmojiClick} />
+          <EmojiPicker theme="auto" onEmojiClick={onEmojiClick} />
         </div>
       )}
       
@@ -104,9 +111,10 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
       
       <button 
         onClick={handleAttachClick}
+        disabled={isUploading}
         style={{ background: 'transparent', border: 'none', color: '#54656f', padding: '8px', cursor: 'pointer', flexShrink: 0 }}
       >
-        <Paperclip size={24} />
+        {isUploading ? <Loader size={24} style={{ animation: 'spin 1s linear infinite' }} /> : <Paperclip size={24} />}
       </button>
       
       <input 

@@ -112,7 +112,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
   };
 
   const ActionButtons = () => (
-    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fff', padding: '4px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
+    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--wa-sidebar-bg)', padding: '4px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
       {isSent && (
         <button onClick={() => onDelete(message._id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Unsend">
           <Trash2 size={16} />

@@ -25,7 +25,7 @@ export default function GroupModal({ users, currentUserId, onClose, onCreate }) 
       zIndex: 1000
     }}>
       <div style={{
-        background: '#fff', borderRadius: '8px', padding: '20px', width: '90%', maxWidth: '400px',
+        background: 'var(--wa-sidebar-bg)', color: 'var(--wa-text-primary)', borderRadius: '8px', padding: '20px', width: '90%', maxWidth: '400px',
         display: 'flex', flexDirection: 'column', gap: '16px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -38,7 +38,7 @@ export default function GroupModal({ users, currentUserId, onClose, onCreate }) 
           placeholder="Group Name" 
           value={groupName}
           onChange={e => setGroupName(e.target.value)}
-          style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '16px' }}
+          style={{ padding: '10px', borderRadius: '4px', border: '1px solid var(--wa-border)', fontSize: '16px', background: 'var(--wa-bg)', color: 'var(--wa-text-primary)' }}
         />
         
         <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -48,14 +48,14 @@ export default function GroupModal({ users, currentUserId, onClose, onCreate }) 
               onClick={() => toggleUser(u._id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '8px',
-                borderRadius: '4px', background: selectedUsers.includes(u._id) ? '#dcf8c6' : '#f0f2f5',
+                borderRadius: '4px', background: selectedUsers.includes(u._id) ? 'var(--wa-bubble-sent)' : 'var(--wa-search-bg)',
                 cursor: 'pointer'
               }}
             >
-              <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-                {selectedUsers.includes(u._id) && <Check size={14} color="#25d366" />}
-              </div>
-              <span>{u.username}</span>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '1px solid var(--wa-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+                  {selectedUsers.includes(u._id) && <Check size={14} color="var(--wa-teal-light)" />}
+                </div>
+                <span>{u.username}</span>
             </div>
           ))}
         </div>

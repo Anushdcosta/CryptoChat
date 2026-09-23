@@ -1,28 +1,55 @@
 import React, { useState } from 'react';
-import { X, Camera, Moon, Sun, Monitor, LogOut } from 'lucide-react';
+import { X, Camera, Moon, Sun, Monitor, LogOut, Upload } from 'lucide-react';
+import { uploadToCloudinary } from '../utils/CloudinaryUtils';
+import ImageCropperModal from './ImageCropperModal';
 
-export default function SettingsModal({ user, theme, setTheme, notificationsEnabled, setNotificationsEnabled, onClose, onSave, onLogout }) {
+export default function SettingsModal({ user, theme, setTheme, accentColor, setAccentColor, wallpaper, setWallpaper, notificationsEnabled, setNotificationsEnabled, onClose, onSave, onLogout }) {
   const [username, setUsername] = useState(user?.username || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [status, setStatus] = useState(user?.status || 'Hey there! I am using CryptoChat.');
+  const [isUploading, setIsUploading] = useState(false);
+  const [cropData, setCropData] = useState(null);
 
   const handleSave = () => {
     onSave({ username, avatar, status });
     onClose();
   };
 
-  const handleImageUpload = (e) => {
+  const processSelectedImage = (e, type, aspect) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 1024 * 1024) {
-        alert("Image is too large! Please select an image under 1MB.");
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image is too large! Please select an image under 5MB.");
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result);
-      };
       reader.readAsDataURL(file);
+      reader.onload = () => {
+        setCropData({ imageSrc: reader.result, aspect, type });
+      };
+      e.target.value = null; // reset input
+    }
+  };
+
+  const handleImageUpload = (e) => processSelectedImage(e, 'avatar', 1);
+  const handleWallpaperUpload = (e) => processSelectedImage(e, 'wallpaper', 9 / 16);
+
+  const handleCropComplete = async (croppedBlob) => {
+    const { type } = cropData;
+    setCropData(null);
+    setIsUploading(true);
+    try {
+      const fileToUpload = new File([croppedBlob], `cropped-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const url = await uploadToCloudinary(fileToUpload);
+      if (url) {
+        if (type === 'avatar') setAvatar(url);
+        else setWallpaper(url);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Failed to upload ${type}.`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -31,6 +58,14 @@ export default function SettingsModal({ user, theme, setTheme, notificationsEnab
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
+      {cropData && (
+        <ImageCropperModal
+          imageSrc={cropData.imageSrc}
+          aspect={cropData.aspect}
+          onCancel={() => setCropData(null)}
+          onCropComplete={handleCropComplete}
+        />
+      )}
       <div style={{
         background: 'var(--wa-sidebar-bg)', width: '100%', maxWidth: '400px', borderRadius: '12px',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -46,7 +81,7 @@ export default function SettingsModal({ user, theme, setTheme, notificationsEnab
           </button>
         </div>
 
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', maxHeight: '75vh' }}>
           
           {/* Profile Section */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
@@ -58,7 +93,9 @@ export default function SettingsModal({ user, theme, setTheme, notificationsEnab
               }}
               onClick={() => document.getElementById('avatar-upload').click()}
             >
-              {avatar ? (
+              {isUploading ? (
+                <div style={{ color: '#fff', fontSize: '12px' }}>Uploading...</div>
+              ) : avatar ? (
                 <img src={avatar} alt="Avatar" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Camera size={40} color="#fff" />
@@ -172,6 +209,78 @@ export default function SettingsModal({ user, theme, setTheme, notificationsEnab
               </button>
             </div>
           </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />
+
+          {/* Accent Color Section */}
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--wa-teal-light)', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Accent Color</label>
+            <div style={{ display: 'flex', gap: '15px' }}>
+              {[
+                { id: 'teal', color: '#128C7E' },
+                { id: 'blue', color: '#2563eb' },
+                { id: 'purple', color: '#9333ea' },
+                { id: 'rose', color: '#e11d48' },
+                { id: 'orange', color: '#ea580c' },
+              ].map(accent => (
+                <div 
+                  key={accent.id}
+                  onClick={() => setAccentColor(accent.id)}
+                  style={{
+                    width: '30px', height: '30px', borderRadius: '50%', background: accent.color,
+                    cursor: 'pointer', border: accentColor === accent.id ? '2px solid var(--wa-text-primary)' : '2px solid transparent',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)', transition: 'all 0.2s'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />
+
+          {/* Wallpaper Section */}
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--wa-teal-light)', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Chat Wallpaper</label>
+            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
+              {[
+                { id: 'default', name: 'Doodle' },
+                { id: 'solid', name: 'Solid' },
+                { id: 'gradient-ocean', name: 'Ocean' },
+                { id: 'gradient-sunset', name: 'Sunset' },
+                { id: 'anime', name: 'Anime' },
+              ].map(wp => (
+                <button
+                  key={wp.id}
+                  onClick={() => setWallpaper(wp.id)}
+                  style={{
+                    padding: '8px 16px', borderRadius: '20px', border: wallpaper === wp.id ? '2px solid var(--wa-teal-light)' : '1px solid var(--wa-border)',
+                    background: wallpaper === wp.id ? 'var(--wa-chat-hover)' : 'transparent', color: 'var(--wa-text-primary)',
+                    cursor: 'pointer', whiteSpace: 'nowrap'
+                  }}
+                >
+                  {wp.name}
+                </button>
+              ))}
+              <button
+                onClick={() => document.getElementById('wallpaper-upload').click()}
+                disabled={isUploading}
+                style={{
+                  padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--wa-border)',
+                  background: 'transparent', color: 'var(--wa-text-primary)',
+                  cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px'
+                }}
+              >
+                <Upload size={14} /> Custom
+              </button>
+              <input 
+                id="wallpaper-upload" 
+                type="file" 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+                onChange={handleWallpaperUpload} 
+              />
+            </div>
+          </div>
           
           <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />
 
@@ -189,9 +298,10 @@ export default function SettingsModal({ user, theme, setTheme, notificationsEnab
 
             <button 
               onClick={handleSave}
+              disabled={isUploading}
               style={{
-                background: 'var(--wa-teal-light)', color: '#fff', border: 'none',
-                padding: '10px 24px', borderRadius: '24px', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold'
+                background: isUploading ? '#cbd5e1' : 'var(--wa-teal-light)', color: '#fff', border: 'none',
+                padding: '10px 24px', borderRadius: '24px', fontSize: '16px', cursor: isUploading ? 'not-allowed' : 'pointer', fontWeight: 'bold'
               }}
             >
               Save
