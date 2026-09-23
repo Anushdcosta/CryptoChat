@@ -77,18 +77,14 @@
   display: none !important;
 }
 
-.wallpaper-gradient-ocean {
-  background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
-}
-.wallpaper-gradient-ocean::before {
-  display: none !important;
+.wallpaper-space::before {
+  background-image: url('https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1000&q=80');
+  opacity: 0.15 !important;
 }
 
-.wallpaper-gradient-sunset {
-  background: linear-gradient(135deg, #f43f5e, #f97316) !important;
-}
-.wallpaper-gradient-sunset::before {
-  display: none !important;
+.wallpaper-cyberpunk::before {
+  background-image: url('https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&w=1000&q=80');
+  opacity: 0.15 !important;
 }
 
 .wallpaper-anime::before {

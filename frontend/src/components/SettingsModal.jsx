@@ -245,8 +245,8 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
               {[
                 { id: 'default', name: 'Doodle' },
                 { id: 'solid', name: 'Solid' },
-                { id: 'gradient-ocean', name: 'Ocean' },
-                { id: 'gradient-sunset', name: 'Sunset' },
+                { id: 'space', name: 'Space' },
+                { id: 'cyberpunk', name: 'Cyberpunk' },
                 { id: 'anime', name: 'Anime' },
               ].map(wp => (
                 <button
