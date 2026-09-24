@@ -3,6 +3,10 @@ import { scrambleText } from '../crypto';
 import { Send, Smile, Paperclip, X, Loader } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { uploadToCloudinary } from '../utils/CloudinaryUtils';
+import StickerStoreModal from './StickerStoreModal';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const WhatsAppScanner = registerPlugin('WhatsAppScanner');
 
 export default function MessageInput({ user, onUploadStickers, onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
   const [text, setText] = useState('');
@@ -11,6 +15,9 @@ export default function MessageInput({ user, onUploadStickers, onSendMessage, on
   const [isUploadingStickers, setIsUploadingStickers] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pickerTab, setPickerTab] = useState('emoji');
+  const [localWhatsappStickers, setLocalWhatsappStickers] = useState([]);
+  const [isSyncingStickers, setIsSyncingStickers] = useState(false);
+  const [showStickerStore, setShowStickerStore] = useState(false);
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const stickerInputRef = useRef(null);
@@ -93,6 +100,36 @@ export default function MessageInput({ user, onUploadStickers, onSendMessage, on
     }
   };
 
+  const handleSyncWhatsappStickers = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      alert("This feature is only available on the Android app!");
+      return;
+    }
+    
+    setIsSyncingStickers(true);
+    try {
+      const p = await WhatsAppScanner.requestPermission();
+      if (p.granted) {
+        const result = await WhatsAppScanner.scanStickers();
+        const paths = result.stickers;
+        
+        // Convert to displayable URLs
+        const localUrls = paths.map(path => Capacitor.convertFileSrc(path));
+        // Keep a mapping of localUrl -> absolutePath so we can upload it later
+        const mappings = paths.map((path, index) => ({ url: localUrls[index], path }));
+        
+        setLocalWhatsappStickers(mappings);
+      } else {
+        alert("Please grant All Files Access to sync WhatsApp stickers.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to scan WhatsApp stickers");
+    } finally {
+      setIsSyncingStickers(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     setText(e.target.value);
     if (onTyping) onTyping();
@@ -146,16 +183,64 @@ export default function MessageInput({ user, onUploadStickers, onSendMessage, on
               <EmojiPicker theme="auto" onEmojiClick={onEmojiClick} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', height: '400px', width: '350px' }}>
-                <div style={{ padding: '10px', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ padding: '10px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                  <button 
+                    onClick={() => setShowStickerStore(true)}
+                    style={{ background: 'var(--wa-teal-light)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1 }}
+                  >
+                    Sticker Store
+                  </button>
                   <button 
                     onClick={() => stickerInputRef.current?.click()}
                     disabled={isUploadingStickers}
-                    style={{ background: 'var(--wa-teal-light)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    style={{ background: 'var(--wa-sidebar-bg)', color: 'var(--wa-text-primary)', border: '1px solid var(--wa-border)', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1 }}
                   >
-                    {isUploadingStickers ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Import Stickers'}
+                    {isUploadingStickers ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Import'}
                   </button>
                 </div>
                 <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', overflowY: 'auto', flex: 1 }}>
+                  
+                  {/* Map Local WhatsApp Stickers */}
+                  {localWhatsappStickers.map((sticker, idx) => (
+                    <div key={'local_'+idx} style={{ position: 'relative', width: '100%', height: '100px' }}>
+                      <img 
+                        src={sticker.url} 
+                        alt="wa_sticker" 
+                        onClick={async () => {
+                          setShowEmojiPicker(false);
+                          
+                          // To upload, we need the actual file. We can't easily convert absolute path to File in JS easily without reading it.
+                          // Let's just pass the localUrl and handleSendMessage can deal with it, OR we fetch the blob.
+                          try {
+                            const response = await fetch(sticker.url);
+                            const blob = await response.blob();
+                            const file = new File([blob], "sticker.webp", { type: "image/webp" });
+                            
+                            const uploadedUrl = await uploadToCloudinary(file);
+                            
+                            if (uploadedUrl) {
+                              // Automatically save to profile too
+                              if (onUploadStickers) await onUploadStickers([uploadedUrl]);
+                              
+                              onSendMessage({
+                                plainText: '🎨 Sticker',
+                                scrambledText: scrambleText('🎨 Sticker'),
+                                attachment: uploadedUrl,
+                                attachmentType: 'image/webp',
+                                timestamp: Date.now()
+                              });
+                            }
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }}
+                        style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', opacity: 0.9 }} 
+                      />
+                      <div style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 4px', borderRadius: '4px' }}>WA</div>
+                    </div>
+                  ))}
+
+                  {/* Map Cloud Stickers */}
                   {[...(user?.stickers || []), ...STICKERS].map((sticker, idx) => (
                     <img 
                       key={idx} 
@@ -203,6 +288,16 @@ export default function MessageInput({ user, onUploadStickers, onSendMessage, on
       >
         {isUploading ? <Loader size={24} style={{ animation: 'spin 1s linear infinite' }} /> : <Paperclip size={24} />}
       </button>
+
+      {showStickerStore && (
+        <StickerStoreModal 
+          userStickers={user?.stickers}
+          onClose={() => setShowStickerStore(false)}
+          onDownloadPack={async (stickers) => {
+            if (onUploadStickers) await onUploadStickers(stickers);
+          }}
+        />
+      )}
       
       <input 
         type="file" 
