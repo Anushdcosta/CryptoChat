@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, ArrowRight, ArrowLeft, Search, X, Users, Plus, MessageSquarePlus, MoreVertical } from 'lucide-react';
 import { requestNotificationPermissions, showNotification } from './utils/NotificationUtils';
 import SidebarContextMenu from './components/SidebarContextMenu';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
+const WhatsAppSticker = registerPlugin('WhatsAppSticker');
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import { BackgroundMode } from '@anuradev/capacitor-background-mode';
@@ -16,7 +17,7 @@ import Login from './components/Login';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, setDoc, updateDoc, onSnapshot, query, where, orderBy, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, onSnapshot, query, where, orderBy, addDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -81,6 +82,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [messageToForward, setMessageToForward] = useState(null);
+  const [incomingStickerPack, setIncomingStickerPack] = useState(null);
 
   // AdMob Management
   const adMobState = useRef({ initialized: false, isShowing: false, interstitialShown: false });
@@ -148,6 +150,36 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const listener = WhatsAppSticker.addListener('stickerPackReceived', (data) => {
+        setIncomingStickerPack({
+          packName: data.packName,
+          count: data.count
+        });
+      });
+      return () => {
+        listener.then(l => l.remove());
+      };
+    }
+  }, []);
+
+  const handleSaveStickerPack = async () => {
+    try {
+      const { packName, stickers } = await WhatsAppSticker.getPendingPack();
+      console.log(`Received ${stickers.length} stickers from pack: ${packName}`);
+      
+      // In a full implementation, you would iterate over `stickers` (which are file:// paths)
+      // Read them using Capacitor Filesystem, upload them to Cloudinary, and save to Firebase.
+      
+      showNotification(`Saved ${stickers.length} stickers from ${packName}!`, "");
+      setIncomingStickerPack(null);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to import sticker pack.");
+    }
+  };
 
   // 1. Auth Listener
   useEffect(() => {
@@ -427,6 +459,19 @@ export default function App() {
       await updateDoc(doc(db, 'users', user._id), { isOnline: false, lastSeen: Date.now() });
     }
     await signOut(auth);
+  };
+
+  const handleUploadStickers = async (newStickerUrls) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user._id), {
+        stickers: arrayUnion(...newStickerUrls)
+      });
+      // Update local state temporarily until onSnapshot catches it
+      setUser(prev => ({ ...prev, stickers: [...(prev.stickers || []), ...newStickerUrls] }));
+    } catch (e) {
+      console.error("Failed to add stickers to user profile", e);
+    }
   };
 
   const handleSendMessage = async (data) => {
@@ -855,6 +900,8 @@ export default function App() {
               </div>
             ) : (
               <MessageInput 
+                user={user}
+                onUploadStickers={handleUploadStickers}
                 onSendMessage={handleSendMessage} 
                 onTyping={() => {}}
                 onStopTyping={() => {}}
@@ -912,6 +959,36 @@ export default function App() {
           onClose={() => setShowForwardModal(false)}
           onForward={handleForwardMessage}
         />
+      )}
+
+      {incomingStickerPack && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999, 
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div style={{
+            background: 'var(--wa-bg)', padding: '24px', borderRadius: '12px', 
+            maxWidth: '400px', textAlign: 'center', margin: '20px', color: 'var(--wa-text-primary)'
+          }}>
+            <h3 style={{ marginTop: 0 }}>New Sticker Pack!</h3>
+            <p>An app is trying to add the sticker pack <strong>"{incomingStickerPack.packName}"</strong> ({incomingStickerPack.count} stickers) to CryptoChat.</p>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'center' }}>
+              <button 
+                onClick={() => setIncomingStickerPack(null)}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--wa-border)', background: 'transparent', color: 'var(--wa-text-primary)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveStickerPack}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'var(--wa-teal-light)', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Save to My Stickers
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

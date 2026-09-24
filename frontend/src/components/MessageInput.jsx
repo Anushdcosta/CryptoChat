@@ -4,14 +4,16 @@ import { Send, Smile, Paperclip, X, Loader } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { uploadToCloudinary } from '../utils/CloudinaryUtils';
 
-export default function MessageInput({ onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
+export default function MessageInput({ user, onUploadStickers, onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
   const [text, setText] = useState('');
   const [attachment, setAttachment] = useState(null); // { url, type }
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingStickers, setIsUploadingStickers] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pickerTab, setPickerTab] = useState('emoji');
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const stickerInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   
   const STICKERS = [
@@ -62,6 +64,33 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
     }
     
     e.target.value = null; // reset
+  };
+
+  const handleStickerImport = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setIsUploadingStickers(true);
+    const uploadedUrls = [];
+    
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size > 5 * 1024 * 1024) continue; // Skip if > 5MB
+        const url = await uploadToCloudinary(file);
+        if (url) uploadedUrls.push(url);
+      }
+      
+      if (uploadedUrls.length > 0 && onUploadStickers) {
+        await onUploadStickers(uploadedUrls);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to upload some stickers");
+    } finally {
+      setIsUploadingStickers(false);
+      if (stickerInputRef.current) stickerInputRef.current.value = "";
+    }
   };
 
   const handleInputChange = (e) => {
@@ -116,29 +145,49 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
             {pickerTab === 'emoji' ? (
               <EmojiPicker theme="auto" onEmojiClick={onEmojiClick} />
             ) : (
-              <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', width: '350px', height: '400px', overflowY: 'auto' }}>
-                {STICKERS.map((sticker, idx) => (
-                  <img 
-                    key={idx} 
-                    src={sticker} 
-                    alt="sticker" 
-                    onClick={() => {
-                      onSendMessage({
-                        plainText: '🎨 Sticker',
-                        scrambledText: scrambleText('🎨 Sticker'),
-                        attachment: sticker,
-                        attachmentType: 'image/gif',
-                        timestamp: Date.now()
-                      });
-                      setShowEmojiPicker(false);
-                    }}
-                    style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} 
-                  />
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', height: '400px', width: '350px' }}>
+                <div style={{ padding: '10px', display: 'flex', justifyContent: 'center' }}>
+                  <button 
+                    onClick={() => stickerInputRef.current?.click()}
+                    disabled={isUploadingStickers}
+                    style={{ background: 'var(--wa-teal-light)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    {isUploadingStickers ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Import Stickers'}
+                  </button>
+                </div>
+                <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', overflowY: 'auto', flex: 1 }}>
+                  {[...(user?.stickers || []), ...STICKERS].map((sticker, idx) => (
+                    <img 
+                      key={idx} 
+                      src={sticker} 
+                      alt="sticker" 
+                      onClick={() => {
+                        onSendMessage({
+                          plainText: '🎨 Sticker',
+                          scrambledText: scrambleText('🎨 Sticker'),
+                          attachment: sticker,
+                          attachmentType: 'image/webp',
+                          timestamp: Date.now()
+                        });
+                        setShowEmojiPicker(false);
+                      }}
+                      style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} 
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
+      
+      <input 
+        type="file" 
+        ref={stickerInputRef} 
+        style={{ display: 'none' }} 
+        accept="image/webp,image/png,image/gif" 
+        multiple
+        onChange={handleStickerImport} 
+      />
       
       <button 
         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
