@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Reply, Copy, Smile, Trash2 } from 'lucide-react';
+import { Reply, Copy, Smile, Trash2, Star, Forward } from 'lucide-react';
 
-export default function ContextMenu({ x, y, message, onClose, onReply, onDelete, onReact }) {
+export default function ContextMenu({ x, y, message, onClose, onReply, onDelete, onReact, onStar, onForward }) {
   const menuRef = useRef(null);
 
   const handleCopy = () => {
@@ -43,7 +43,9 @@ export default function ContextMenu({ x, y, message, onClose, onReply, onDelete,
         ))}
       </div>
       <ContextMenuItem icon={<Reply size={18} />} label="Reply" onClick={onReply} />
-      <ContextMenuItem icon={<Copy size={18} />} label="Copy" onClick={handleCopy} />
+      <ContextMenuItem icon={<Star size={18} />} label="Star" onClick={onStar} />
+      <ContextMenuItem icon={<Forward size={18} />} label="Forward" onClick={onForward} />
+      <ContextMenuItem icon={<Copy size={18} />} label="Copy Text" onClick={handleCopy} />
       <ContextMenuItem icon={<Trash2 size={18} color="#ef4444" />} label="Delete" onClick={onDelete} color="#ef4444" />
     </div>
   );

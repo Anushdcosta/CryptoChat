@@ -6,12 +6,22 @@ import { uploadToCloudinary } from '../utils/CloudinaryUtils';
 
 export default function MessageInput({ onSendMessage, onTyping, onStopTyping, replyingToMessage, onCancelReply }) {
   const [text, setText] = useState('');
-  const [attachment, setAttachment] = useState(null);
+  const [attachment, setAttachment] = useState(null); // { url, type }
   const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [pickerTab, setPickerTab] = useState('emoji');
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  
+  const STICKERS = [
+    'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif',
+    'https://media.giphy.com/media/3o7aD2saalEvpjtVNm/giphy.gif',
+    'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif',
+    'https://media.giphy.com/media/Wj7lNjMNDxSmc/giphy.gif',
+    'https://media.giphy.com/media/Lopx9eUi34rbq/giphy.gif',
+    'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif'
+  ];
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -36,15 +46,15 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
     const file = e.target.files[0];
     if (!file) return;
     
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Please select an image smaller than 5MB");
+    if (file.size > 20 * 1024 * 1024) {
+      alert("Please select a file smaller than 20MB");
       return;
     }
 
     setIsUploading(true);
     try {
       const url = await uploadToCloudinary(file);
-      if (url) setAttachment(url);
+      if (url) setAttachment({ url, type: file.type || 'application/octet-stream' });
     } catch (err) {
       alert("Failed to upload attachment");
     } finally {
@@ -70,13 +80,14 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
     if (onStopTyping) onStopTyping();
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
-    const plainText = text.trim() || '📸 Photo';
+    const plainText = text.trim() || (attachment ? (attachment.type.startsWith('image') ? '📸 Photo' : attachment.type.startsWith('video') ? '🎥 Video' : '📎 File') : '');
     const scrambledText = scrambleText(plainText);
     
     onSendMessage({
       plainText,
       scrambledText,
-      attachment,
+      attachment: attachment ? attachment.url : null,
+      attachmentType: attachment ? attachment.type : null,
       timestamp: Date.now()
     });
     
@@ -97,10 +108,37 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
       )}
       <div className="input-area" style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
         {showEmojiPicker && (
-          <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100 }}>
-          <EmojiPicker theme="auto" onEmojiClick={onEmojiClick} />
-        </div>
-      )}
+          <div ref={pickerRef} style={{ position: 'absolute', bottom: '60px', left: '10px', zIndex: 100, background: 'var(--wa-bg)', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--wa-border)' }}>
+              <button onClick={() => setPickerTab('emoji')} style={{ flex: 1, padding: '10px', background: pickerTab === 'emoji' ? 'var(--wa-sidebar-bg)' : 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: 'var(--wa-text-primary)' }}>Emoji</button>
+              <button onClick={() => setPickerTab('stickers')} style={{ flex: 1, padding: '10px', background: pickerTab === 'stickers' ? 'var(--wa-sidebar-bg)' : 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: 'var(--wa-text-primary)' }}>Stickers</button>
+            </div>
+            {pickerTab === 'emoji' ? (
+              <EmojiPicker theme="auto" onEmojiClick={onEmojiClick} />
+            ) : (
+              <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', width: '350px', height: '400px', overflowY: 'auto' }}>
+                {STICKERS.map((sticker, idx) => (
+                  <img 
+                    key={idx} 
+                    src={sticker} 
+                    alt="sticker" 
+                    onClick={() => {
+                      onSendMessage({
+                        plainText: '🎨 Sticker',
+                        scrambledText: scrambleText('🎨 Sticker'),
+                        attachment: sticker,
+                        attachmentType: 'image/gif',
+                        timestamp: Date.now()
+                      });
+                      setShowEmojiPicker(false);
+                    }}
+                    style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} 
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       
       <button 
         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -121,14 +159,20 @@ export default function MessageInput({ onSendMessage, onTyping, onStopTyping, re
         type="file" 
         ref={fileInputRef} 
         style={{ display: 'none' }} 
-        accept="image/*" 
+        accept="*/*" 
         onChange={handleFileChange} 
       />
       
       <div className="text-input-group" style={{ display: 'flex', alignItems: 'center' }}>
         {attachment && (
-          <div style={{ position: 'relative', marginRight: '10px' }}>
-            <img src={attachment} alt="preview" style={{ height: '30px', borderRadius: '4px' }} />
+          <div style={{ position: 'relative', marginRight: '10px', display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '4px', borderRadius: '4px' }}>
+            {attachment.type.startsWith('image') ? (
+              <img src={attachment.url} alt="preview" style={{ height: '30px', borderRadius: '4px' }} />
+            ) : attachment.type.startsWith('video') ? (
+              <div style={{ padding: '0 8px', fontSize: '12px', fontWeight: 'bold' }}>🎥 Video</div>
+            ) : (
+              <div style={{ padding: '0 8px', fontSize: '12px', fontWeight: 'bold' }}>📎 File</div>
+            )}
             <button 
               onClick={() => setAttachment(null)}
               style={{ position: 'absolute', top: -5, right: -5, background: 'red', color: 'white', border: 'none', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}

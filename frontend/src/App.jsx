@@ -79,6 +79,8 @@ export default function App() {
   const [showGroupSettingsModal, setShowGroupSettingsModal] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [messageToForward, setMessageToForward] = useState(null);
 
   // AdMob Management
   const adMobState = useRef({ initialized: false, isShowing: false, interstitialShown: false });
@@ -436,6 +438,7 @@ export default function App() {
       plainText: data.plainText,
       scrambledText: data.scrambledText,
       attachment: data.attachment || null,
+      attachmentType: data.attachmentType || null,
       replyTo: replyingToMessage ? replyingToMessage._id : null,
       createdAt: Date.now(),
       read: false,
@@ -475,6 +478,52 @@ export default function App() {
 
   const handleMarkViewed = async (messageId) => {
     await updateDoc(doc(db, 'messages', messageId), { viewed: true, attachment: null });
+  };
+
+  const handleForwardMessage = async (targetChat) => {
+    if (!user || !messageToForward) return;
+    const msgData = {
+      senderId: user._id,
+      senderName: user.username,
+      plainText: messageToForward.plainText,
+      scrambledText: messageToForward.scrambledText,
+      attachment: messageToForward.attachment || null,
+      attachmentType: messageToForward.attachmentType || null,
+      replyTo: null,
+      createdAt: Date.now(),
+      read: false,
+      viewed: false,
+      reactions: []
+    };
+
+    if (targetChat.isGroup) {
+      msgData.roomId = targetChat._id;
+    } else {
+      const threadId = [user._id, targetChat._id].sort().join('_');
+      msgData.receiverId = targetChat._id;
+      msgData.threadId = threadId;
+      
+      if (!threads[threadId]) {
+        await setDoc(doc(db, 'threads', threadId), {
+          members: [user._id, targetChat._id],
+          states: {
+            [user._id]: 'primary',
+            [targetChat._id]: 'request'
+          },
+          createdAt: Date.now()
+        });
+      }
+    }
+    await addDoc(collection(db, 'messages'), msgData);
+    setMessageToForward(null);
+  };
+
+  const handleStarMessage = async (message) => {
+    if (!user) return;
+    await setDoc(doc(db, 'users', user._id, 'starredMessages', message._id), {
+      ...message,
+      starredAt: Date.now()
+    });
   };
 
   const handleDeleteMessage = async (messageId) => {
@@ -784,6 +833,8 @@ export default function App() {
               onDeleteMessage={handleDeleteMessage}
               onReply={setReplyingToMessage}
               onReact={handleReact}
+              onStar={handleStarMessage}
+              onForward={(msg) => { setMessageToForward(msg); setShowForwardModal(true); }}
               isGroupChat={activeChat.isGroup}
             />
             
@@ -853,6 +904,14 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {showForwardModal && (
+        <ForwardModal 
+          activeChats={[...remoteUsers.filter(u => !u.isGroup && threads[[user._id, u._id].sort().join('_')]), ...remoteUsers.filter(u => u.isGroup && u.members.includes(user._id))]}
+          onClose={() => setShowForwardModal(false)}
+          onForward={handleForwardMessage}
+        />
       )}
     </div>
   );

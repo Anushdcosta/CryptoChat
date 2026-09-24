@@ -7,7 +7,6 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
   const [isWrapperHovered, setIsWrapperHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
-  const [wasViewed, setWasViewed] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -33,16 +32,6 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
   const longPressTimer = useRef(null);
 
   const showXRay = isHovered && isShiftDown;
-
-  useEffect(() => {
-    // Only trigger View Once logic if the message was RECEIVED, not sent.
-    if (showXRay && message.attachment && !message.viewed && !isSent) {
-      setWasViewed(true);
-    } else if (!showXRay && wasViewed) {
-      if (onMarkViewed) onMarkViewed(message._id);
-      setWasViewed(false);
-    }
-  }, [showXRay, message, wasViewed, onMarkViewed, isSent]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -111,6 +100,27 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
     }
   };
 
+  const renderAttachment = (isBlurred = false) => {
+    if (!message.attachment) return null;
+    const type = message.attachmentType || 'image/jpeg';
+    const filter = isBlurred ? 'blur(15px)' : 'none';
+    const style = { maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '4px', filter, transition: 'filter 0.3s' };
+    
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
+        {type.startsWith('image') ? (
+          <img src={message.attachment} alt="attachment" style={style} />
+        ) : type.startsWith('video') ? (
+          <video src={message.attachment} controls={!isBlurred} style={style} />
+        ) : (
+          <a href={message.attachment} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', textDecoration: 'none', color: 'inherit', filter }}>
+            📎 Download File
+          </a>
+        )}
+      </div>
+    );
+  };
+
   const ActionButtons = () => (
     <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--wa-sidebar-bg)', padding: '4px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
       {isSent && (
@@ -173,14 +183,14 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         onTouchMove={onTouchMove}
         onContextMenu={onContextMenu}
         style={{ 
-          minWidth: (message.attachment || message.viewed) ? '120px' : '80px',
+          minWidth: message.attachment ? '120px' : '80px',
           marginBottom: (message.reactions && message.reactions.length > 0) ? '12px' : '0'
         }}
       >
         <div style={{ 
           opacity: showXRay ? 0.2 : 1, 
           transition: 'opacity 0.2s',
-          fontFamily: (message.attachment || message.viewed) ? 'inherit' : 'monospace',
+          fontFamily: message.attachment ? 'inherit' : 'monospace',
           wordBreak: 'break-all',
           display: 'flex',
           flexDirection: 'column',
@@ -198,25 +208,20 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
             </div>
           )}
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {message.viewed ? (
-              <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
-            ) : message.attachment ? (
-              <div style={{ width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isSent ? '#c1e5a5' : '#e2e8f0', borderRadius: '8px' }}>
-                <span style={{ fontWeight: 'bold' }}>{isSent ? '📸 Photo Sent' : '📸 View Once Photo'}</span>
-              </div>
-            ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {renderAttachment(true)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ display: 'grid' }}>
                 <div style={{ gridArea: '1 / 1', visibility: 'hidden', fontFamily: 'inherit', wordBreak: 'break-word' }}>
-                  {message.plainText !== '📸 Photo' && message.plainText}
+                  {message.plainText !== '📸 Photo' && message.plainText !== '🎥 Video' && message.plainText !== '📎 File' && message.plainText}
                 </div>
                 <div style={{ gridArea: '1 / 1' }}>
                   {message.scrambledText}
                 </div>
               </div>
-            )}
-            {/* Invisible spacer for the time to float right properly */}
-            {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+              {/* Invisible spacer for the time to float right properly */}
+              <span style={{ display: 'inline-block', width: '60px' }}></span>
+            </div>
           </div>
         </div>
 
@@ -257,24 +262,12 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {message.viewed ? (
-              <span style={{ color: 'var(--wa-text-secondary)', fontStyle: 'italic' }}>📸 Opened</span>
-            ) : (
-              <>
-                {message.attachment && (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '8px' }}>
-                    {isSent ? (
-                      <span style={{ fontWeight: 'bold' }}>📸 Photo Sent (View Once)</span>
-                    ) : (
-                      <img src={message.attachment} alt="attachment" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
-                    )}
-                  </div>
-                )}
-                {message.plainText !== '📸 Photo' && <span>{message.plainText}</span>}
-              </>
-            )}
-            {!message.attachment && <span style={{ display: 'inline-block', width: '60px' }}></span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {renderAttachment(false)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {message.plainText !== '📸 Photo' && message.plainText !== '🎥 Video' && message.plainText !== '📎 File' && <span>{message.plainText}</span>}
+              <span style={{ display: 'inline-block', width: '60px' }}></span>
+            </div>
           </div>
         </div>
         
