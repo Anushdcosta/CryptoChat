@@ -6,42 +6,39 @@ const STICKER_PACKS = [
     id: 'cat_memes',
     title: 'Cat Memes',
     description: 'The purr-fect reactions for any chat.',
-    cover: 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif',
+    cover: 'https://res.cloudinary.com/f5msdmar/image/upload/v1790364225/hullr4w9bbukczqomsiv.gif',
     stickers: [
-      'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif',
-      'https://media.giphy.com/media/jpbnoe3UIa8WX8XpnG/giphy.gif',
-      'https://media.giphy.com/media/2FazqiXvVst3P5hTO/giphy.gif',
-      'https://media.giphy.com/media/26ufcVAp3AiReV58A/giphy.gif',
-      'https://media.giphy.com/media/VbnUQpnihPSIgIXuZv/giphy.gif',
-      'https://media.giphy.com/media/3o7aD2saalEvpjtVNm/giphy.gif'
+      'https://res.cloudinary.com/f5msdmar/image/upload/v1790364225/hullr4w9bbukczqomsiv.gif',
+      'https://res.cloudinary.com/f5msdmar/image/upload/v1790364227/hz3t4kpapbbkem6wwfuv.gif',
+      'https://res.cloudinary.com/f5msdmar/image/upload/v1790364228/zg8mpioftobt7urrymnf.gif',
+      'https://res.cloudinary.com/f5msdmar/image/upload/v1790364220/oqriqb6zsw1kiybznhd7.gif',
+      'https://res.cloudinary.com/f5msdmar/image/upload/v1790364223/jpzckixqjew2xsbwwu2n.gif'
     ]
   },
   {
     id: 'cute_memes',
     title: 'Cute & Wholesome',
     description: 'Send some love and wholesomeness.',
-    cover: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
+    cover: 'https://em-content.zobj.net/source/apple/391/pleading-face_1f97a.png',
     stickers: [
-      'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
-      'https://media.giphy.com/media/3ndAvMC5LFPNMCzq7m/giphy.gif',
-      'https://media.giphy.com/media/Wj7lNjMNDxSmc/giphy.gif',
-      'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif',
-      'https://media.giphy.com/media/xT0xeQ1ZUQ0lvz2wF2/giphy.gif',
-      'https://media.giphy.com/media/11s7Ke7jcNxCHS/giphy.gif'
+      'https://em-content.zobj.net/source/apple/391/pleading-face_1f97a.png',
+      'https://em-content.zobj.net/source/apple/391/smiling-face-with-hearts_1f970.png',
+      'https://em-content.zobj.net/source/apple/391/dog-face_1f436.png',
+      'https://em-content.zobj.net/source/apple/391/bear_1f43b.png',
+      'https://em-content.zobj.net/source/apple/391/sparkles_2728.png'
     ]
   },
   {
     id: 'crypto_pack',
     title: 'Crypto Degen',
     description: 'To the moon! HODL your way to the top.',
-    cover: 'https://media.giphy.com/media/trN9ht5RlE3Dcwavg2/giphy.gif',
+    cover: 'https://em-content.zobj.net/source/apple/391/rocket_1f680.png',
     stickers: [
-      'https://media.giphy.com/media/trN9ht5RlE3Dcwavg2/giphy.gif',
-      'https://media.giphy.com/media/85UGT15wJfghYtuM5E/giphy.gif',
-      'https://media.giphy.com/media/Y2ZUWLrTy63j9T6qrK/giphy.gif',
-      'https://media.giphy.com/media/Qv7y2Tl4ki7Ru/giphy.gif',
-      'https://media.giphy.com/media/Jj2m0QvXYkQta/giphy.gif',
-      'https://media.giphy.com/media/l41lZxzroU33typuU/giphy.gif'
+      'https://em-content.zobj.net/source/apple/391/rocket_1f680.png',
+      'https://em-content.zobj.net/source/apple/391/gem-stone_1f48e.png',
+      'https://em-content.zobj.net/source/apple/391/chart-increasing_1f4c8.png',
+      'https://em-content.zobj.net/source/apple/391/money-bag_1f4b0.png',
+      'https://em-content.zobj.net/source/apple/391/alien-monster_1f47e.png'
     ]
   }
 ];
