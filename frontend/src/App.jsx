@@ -296,7 +296,14 @@ export default function App() {
       snapshot.forEach(d => msgs.push({ _id: d.id, ...d.data() }));
       
       // Sort in memory to avoid needing Firestore composite indexes
-      msgs.sort((a, b) => a.createdAt - b.createdAt);
+      msgs.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
+        // If one is 0 (local unsynced), it should be treated as the newest
+        if (timeA === 0) return 1;
+        if (timeB === 0) return -1;
+        return timeA - timeB;
+      });
       
       setMessages(msgs);
       
@@ -485,7 +492,7 @@ export default function App() {
       attachment: data.attachment || null,
       attachmentType: data.attachmentType || null,
       replyTo: replyingToMessage ? replyingToMessage._id : null,
-      createdAt: Date.now(),
+      createdAt: serverTimestamp(),
       read: false,
       viewed: false,
       reactions: []
@@ -505,7 +512,7 @@ export default function App() {
             [user._id]: 'primary',
             [activeChat._id]: 'request'
           },
-          createdAt: Date.now()
+          createdAt: serverTimestamp()
         });
       } else {
         // If thread exists but current user has no state, implicitly accept to primary
@@ -535,7 +542,7 @@ export default function App() {
       attachment: messageToForward.attachment || null,
       attachmentType: messageToForward.attachmentType || null,
       replyTo: null,
-      createdAt: Date.now(),
+      createdAt: serverTimestamp(),
       read: false,
       viewed: false,
       reactions: []
@@ -555,7 +562,7 @@ export default function App() {
             [user._id]: 'primary',
             [targetChat._id]: 'request'
           },
-          createdAt: Date.now()
+          createdAt: serverTimestamp()
         });
       }
     }

@@ -50,6 +50,8 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
     };
   }, []);
 
+  const timeValue = message.createdAt?.toMillis ? message.createdAt.toMillis() : (message.createdAt || message.timestamp || Date.now());
+
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -280,7 +282,7 @@ export default function EncryptedMessage({ message, isSent, onMarkViewed, onDele
         )}
         
         <div className="message-time" style={{ position: 'absolute', bottom: '4px', right: '12px', zIndex: 11 }}>
-          {new Date(message.createdAt || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {new Date(timeValue).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           {isSent && (
             <svg viewBox="0 0 16 15" width="16" height="15" style={{ marginLeft: 4, verticalAlign: 'middle' }}>
               <path fill={message.read ? "#53bdeb" : "#9CA3AF"} d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.88a.32.32 0 0 1-.484.032l-.358-.325a.32.32 0 0 0-.484.032l-.378.48a.418.418 0 0 0 .036.54l1.32 1.267a.32.32 0 0 0 .484-.034l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.88a.32.32 0 0 1-.484.032L1.892 7.74a.366.366 0 0 0-.516.005l-.423.433a.364.364 0 0 0 .006.514l3.255 3.185a.32.32 0 0 0 .484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"></path>
