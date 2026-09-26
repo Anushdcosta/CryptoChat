@@ -7,11 +7,13 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
   const [username, setUsername] = useState(user?.username || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [status, setStatus] = useState(user?.status || 'Hey there! I am using CryptoChat.');
+  const [isPrivate, setIsPrivate] = useState(user?.isPrivate || false);
+  const [privateKey] = useState(user?.privateKey || Math.random().toString(36).substring(2, 10).toUpperCase());
   const [isUploading, setIsUploading] = useState(false);
   const [cropData, setCropData] = useState(null);
 
   const handleSave = () => {
-    onSave({ username, avatar, status });
+    onSave({ username, avatar, status, isPrivate, privateKey });
     onClose();
   };
 
@@ -157,6 +159,55 @@ export default function SettingsModal({ user, theme, setTheme, accentColor, setA
                 }}
               />
             </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />
+
+          {/* Privacy Section */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <label style={{ fontSize: '16px', color: 'var(--wa-text-primary)', fontWeight: 'bold' }}>Private Profile</label>
+                <div style={{ fontSize: '12px', color: 'var(--wa-text-secondary)', marginTop: '4px' }}>Hide your profile from public searches.</div>
+              </div>
+              <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px', flexShrink: 0 }}>
+                <input 
+                  type="checkbox" 
+                  checked={isPrivate} 
+                  onChange={e => setIsPrivate(e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span style={{
+                  position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: isPrivate ? 'var(--wa-teal-light)' : '#ccc',
+                  transition: '.4s', borderRadius: '34px'
+                }}>
+                  <span style={{
+                    position: 'absolute', content: '""', height: '16px', width: '16px',
+                    left: isPrivate ? '22px' : '2px', bottom: '2px',
+                    backgroundColor: 'white', transition: '.4s', borderRadius: '50%'
+                  }}></span>
+                </span>
+              </label>
+            </div>
+            {isPrivate && (
+              <div style={{ 
+                background: 'var(--wa-bg)', padding: '12px', borderRadius: '8px', 
+                border: '1px dashed var(--wa-teal-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--wa-text-secondary)', marginBottom: '2px' }}>Your Secret Key</div>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--wa-teal-light)', letterSpacing: '2px' }}>{privateKey}</div>
+                </div>
+                <button 
+                  onClick={() => { navigator.clipboard.writeText(privateKey); alert('Key copied!'); }}
+                  style={{ background: 'var(--wa-sidebar-hover)', border: 'none', color: 'var(--wa-text-primary)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                >
+                  Copy
+                </button>
+              </div>
+            )}
+            {isPrivate && <div style={{ fontSize: '11px', color: 'var(--wa-text-secondary)' }}>Users must search for this exact key to find and message you.</div>}
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid var(--wa-border)' }} />

@@ -648,7 +648,23 @@ export default function App() {
   const allChats = [...remoteRooms, ...remoteUsers];
 
   const displayedUsers = isSearching 
-    ? [...remoteRooms, ...remoteUsers].filter(u => u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? [...remoteRooms, ...remoteUsers].filter(u => {
+        if (u.isGroup) return u.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const hasThread = !!threads[[user._id, u._id].sort().join('_')];
+        
+        if (hasThread) {
+          return u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                 u.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        }
+
+        if (u.isPrivate) {
+          return u.privateKey === searchQuery.trim();
+        }
+
+        return u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+               u.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      })
     : [...remoteRooms, ...remoteUsers].filter(u => {
         if (u.isGroup) {
           return activeTab === 'Primary';
@@ -806,7 +822,7 @@ export default function App() {
 
       {showGroupModal && (
         <GroupModal 
-          users={remoteUsers} 
+          users={remoteUsers.filter(u => threads[[user._id, u._id].sort().join('_')])} 
           currentUserId={user?._id} 
           onClose={() => setShowGroupModal(false)}
           onCreate={handleCreateGroup}
@@ -836,7 +852,7 @@ export default function App() {
       {showGroupSettingsModal && activeChat && activeChat.isGroup && (
         <GroupSettingsModal 
           room={activeChat}
-          users={remoteUsers}
+          users={remoteUsers.filter(u => threads[[user._id, u._id].sort().join('_')])}
           currentUserId={user?._id}
           onClose={() => setShowGroupSettingsModal(false)}
           onAddMember={async (roomId, userId) => {
