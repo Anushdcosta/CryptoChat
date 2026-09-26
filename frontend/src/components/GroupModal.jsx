@@ -30,7 +30,7 @@ export default function GroupModal({ users, currentUserId, onClose, onCreate }) 
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: '20px' }}>New Group</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-text-primary)' }}><X /></button>
         </div>
         
         <input 
